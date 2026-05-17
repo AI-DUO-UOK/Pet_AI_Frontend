@@ -23,4 +23,60 @@ dist-ssr
 *.sln
 *.sw?
 
+# Python
 .venv
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# ML Model weights (large files)
+backend/weights/
+backend/models/
+backend/chatbot/rag_output/
+backend/chatbot/rag_output_cleaned/
+backend/chatbot/raw_pdfs/
+
+# Vector Database (ChromaDB) - auto-generated
+backend/chatbot/db/
+backend/chatbot/*.sqlite3
+
+# Generated documentation
+API_DOCUMENTATION.md
+CODE_EXAMPLES.md
+IMPLEMENTATION_SUMMARY.md
+PRODUCTION_ARCHITECTURE.md
+QUICK_REFERENCE.md
+SETUP_GUIDE.md
+START_HERE.md
+FILES_CREATED.md
+
+# OS
+.DS_Store
+Thumbs.db
