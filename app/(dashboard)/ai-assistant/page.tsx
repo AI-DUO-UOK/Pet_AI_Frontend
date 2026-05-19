@@ -84,6 +84,7 @@ export default function AIAssistant() {
         setSessionId(data.session_id);
         setPetSelected(true);
         setError(null);
+        setIsLoading(false);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : 'Failed to initialize chat'
