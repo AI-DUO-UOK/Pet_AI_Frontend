@@ -9,7 +9,9 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  Upload,
 } from 'lucide-react';
+import { useChatbotAPI } from '@/hooks/useChatbotAPI';
 
 interface Message {
   id: string;
@@ -23,39 +25,39 @@ interface Message {
     dos: string[];
     donts: string[];
   };
+  used_rag?: boolean;
 }
 
-const SUGGESTED_PROMPTS = [
+interface SessionData {
+  session_id: string;
+  animal: 'dog' | 'cat';
+  disease_detected?: string | null;
+}
+
+const SUGGESTED_PROMPTS_DOG = [
   'My dog is limping on his front leg',
-  "Cat hasn't eaten in 24 hours",
+  "My dog hasn't eaten in 24 hours",
   "What's the vaccination schedule for a puppy?",
-  'My cat is scratching her ears constantly',
+  'My dog is scratching constantly',
 ];
 
-const MOCK_ANALYSIS = {
-  condition: 'Possible Ear Infection (Otitis Externa)',
-  confidence: 85,
-  actions: [
-    'Schedule a vet appointment for proper diagnosis',
-    'Prevent your pet from scratching to avoid further damage',
-    'Keep the ears dry',
-  ],
-  dos: [
-    'Use an E-collar if scratching is severe',
-    'Gently wipe the outer ear with a damp cloth',
-  ],
-  donts: [
-    'Do NOT use cotton swabs (Q-tips) inside the ear',
-    'Do NOT apply human ear drops',
-    'Do NOT pour water or alcohol into the ear',
-  ],
-};
+const SUGGESTED_PROMPTS_CAT = [
+  'My cat is scratching her ears constantly',
+  "Cat hasn't eaten in 24 hours",
+  'What are the vaccination requirements for kittens?',
+  'My cat has a rash on her skin',
+];
 
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [session, setSession] = useState<SessionData | null>(null);
+  const [showPetSelector, setShowPetSelector] = useState(true);
+  const [imageInputKey, setImageInputKey] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const { startConversation, sendMessage, uploadImage, loading: apiLoading } = useChatbotAPI();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,8 +67,29 @@ export default function AIAssistant() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const handleSend = (text: string = input) => {
-    if (!text.trim()) return;
+  const handleStartSession = async (animal: 'dog' | 'cat') => {
+    setIsTyping(true);
+    const response = await startConversation(animal);
+    setIsTyping(false);
+
+    if (response) {
+      setSession({
+        session_id: response.session_id,
+        animal,
+      });
+      setShowPetSelector(false);
+      setMessages([
+        {
+          id: Date.now().toString(),
+          role: 'ai',
+          content: response.message,
+        },
+      ]);
+    }
+  };
+
+  const handleSend = async (text: string = input) => {
+    if (!text.trim() || !session || isTyping || apiLoading) return;
 
     const newUserMsg: Message = {
       id: Date.now().toString(),
@@ -78,47 +101,129 @@ export default function AIAssistant() {
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      setIsTyping(false);
-      // If it's a health query, show analysis card
-      if (
-        text.toLowerCase().includes('scratching') ||
-        text.toLowerCase().includes('limping') ||
-        text.toLowerCase().includes('eaten')
-      ) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            role: 'ai',
-            content:
-              'Based on the symptoms you described, here is my preliminary analysis. Please remember I am an AI and this does not replace professional veterinary advice.',
-            isAnalysis: true,
-            analysisData: MOCK_ANALYSIS,
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            role: 'ai',
-            content:
-              "I can help you with that! Puppies typically start their vaccinations at 6-8 weeks of age. The core vaccines include Distemper, Parvovirus, Adenovirus, and Rabies. Would you like me to create a specific schedule based on your puppy's exact age?",
-          },
-        ]);
+    const response = await sendMessage(session.session_id, text);
+    setIsTyping(false);
+
+    if (response) {
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'ai',
+        content: response.bot_response,
+        used_rag: response.used_rag,
+      };
+
+      // If disease detected, add image upload prompt
+      if (response.disease_detected && !text.toLowerCase().includes('image')) {
+        setSession((prev) =>
+          prev ? { ...prev, disease_detected: response.disease_detected } : null
+        );
       }
-    }, 1000);
+
+      setMessages((prev) => [...prev, aiMsg]);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!session || !e.target.files?.[0]) return;
+
+    const file = e.target.files[0];
+    const diseaseType = (session.disease_detected || 'skin') as 'skin' | 'eye';
+
+    setIsTyping(true);
+    const response = await uploadImage(session.session_id, diseaseType, file);
+    setIsTyping(false);
+
+    if (response) {
+      // Parse confidence to number
+      const confidence = Math.round(response.confidence * 100);
+
+      const analysisMsg: Message = {
+        id: Date.now().toString(),
+        role: 'ai',
+        content: `I've analyzed the image and identified a potential condition: **${response.disease_class}**\n\n${response.explanation}`,
+        isAnalysis: true,
+        analysisData: {
+          condition: response.disease_class,
+          confidence,
+          actions: [
+            'Schedule a veterinary appointment for professional diagnosis',
+            'Monitor your pet for any changes in symptoms',
+            'Keep detailed notes about when symptoms started',
+          ],
+          dos: ['Take clear photos for your vet', 'Track any behavior changes', 'Keep your pet comfortable'],
+          donts: [
+            'Do NOT self-diagnose or delay professional care',
+            'Do NOT apply unproven treatments',
+            'Do NOT delay seeking professional advice',
+          ],
+        },
+      };
+
+      setMessages((prev) => [...prev, analysisMsg]);
+    }
+
+    // Reset file input
+    setImageInputKey((prev) => prev + 1);
   };
 
   return (
     <div className="space-y-6 flex flex-col h-[calc(100vh-200px)]">
+      {/* Pet Selector Modal */}
+      {showPetSelector && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-xl"
+          >
+            <div className="text-center space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                  What type of pet do you have?
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400">
+                  Select your pet to get started
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => handleStartSession('dog')}
+                  disabled={isTyping || apiLoading}
+                  className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 border-2 border-amber-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-600 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="text-4xl mb-2">🐕</div>
+                  <div className="font-semibold text-slate-900 dark:text-white">Dog</div>
+                </button>
+
+                <button
+                  onClick={() => handleStartSession('cat')}
+                  disabled={isTyping || apiLoading}
+                  className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-700 border-2 border-purple-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-600 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="text-4xl mb-2">🐱</div>
+                  <div className="font-semibold text-slate-900 dark:text-white">Cat</div>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Bot className="w-6 h-6 text-primary-600 dark:text-primary-400" />
           AI Health Assistant
+          {session && (
+            <span className="text-lg ml-auto text-slate-500 dark:text-slate-400">
+              {session.animal === 'dog' ? '🐕' : '🐱'} {session.animal.charAt(0).toUpperCase() + session.animal.slice(1)}
+            </span>
+          )}
         </h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">
           Describe your pet's symptoms for instant AI-powered insights
@@ -143,15 +248,17 @@ export default function AIAssistant() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 w-full max-w-2xl">
-                {SUGGESTED_PROMPTS.map((prompt, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSend(prompt)}
-                    className="p-3 text-left text-sm bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
-                  >
-                    {prompt}
-                  </button>
-                ))}
+                {(session?.animal === 'cat' ? SUGGESTED_PROMPTS_CAT : SUGGESTED_PROMPTS_DOG).map(
+                  (prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSend(prompt)}
+                      className="p-3 text-left text-sm bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
+                    >
+                      {prompt}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -172,7 +279,7 @@ export default function AIAssistant() {
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl rounded-tl-sm'
                     } px-4 py-3`}
                   >
-                    <p className="text-sm">{msg.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
 
                     {msg.isAnalysis && msg.analysisData && (
                       <div className="mt-4 space-y-3 pt-3 border-t border-current border-opacity-20">
@@ -234,6 +341,12 @@ export default function AIAssistant() {
                         </div>
                       </div>
                     )}
+
+                    {msg.used_rag && msg.role === 'ai' && !msg.isAnalysis && (
+                      <div className="mt-2 text-xs opacity-70 flex items-center gap-1">
+                        <span>🔍</span> Knowledge base used
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -258,17 +371,40 @@ export default function AIAssistant() {
 
       {/* Input Area */}
       <div className="flex gap-3">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Describe your pet's symptoms..."
-          className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-        />
+        <div className="flex-1 flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Describe your pet's symptoms..."
+            disabled={!session || isTyping || apiLoading}
+            className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          {session?.disease_detected && (
+            <>
+              <input
+                ref={imageInputRef}
+                key={imageInputKey}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => imageInputRef.current?.click()}
+                disabled={isTyping || apiLoading}
+                className="px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center gap-2 shadow-sm shadow-blue-600/20"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Upload</span>
+              </button>
+            </>
+          )}
+        </div>
         <button
           onClick={() => handleSend()}
-          disabled={!input.trim() || isTyping}
+          disabled={!input.trim() || !session || isTyping || apiLoading}
           className="px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center gap-2 shadow-sm shadow-primary-600/20"
         >
           <Send className="w-4 h-4" />
