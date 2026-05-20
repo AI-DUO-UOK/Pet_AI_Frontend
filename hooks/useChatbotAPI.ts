@@ -9,6 +9,13 @@ interface ChatResponse {
   disease_detected: string | null;
 }
 
+interface StreamChunk {
+  chunk: string;
+  used_rag: boolean;
+  disease_detected: string | null;
+  done: boolean;
+}
+
 interface StartSessionResponse {
   session_id: string;
   animal: string;
@@ -94,6 +101,88 @@ export const useChatbotAPI = () => {
     []
   );
 
+  const sendMessageStream = useCallback(
+    async (
+      sessionId: string,
+      message: string,
+      onChunk: (chunk: string, metadata: Omit<StreamChunk, 'chunk'>) => void,
+      onError?: (error: string) => void
+    ): Promise<void> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/chat/message/stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            message,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to send message: ${response.statusText}`);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+
+          // Process complete lines
+          for (let i = 0; i < lines.length - 1; i++) {
+            const line = lines[i];
+
+            if (line.startsWith('data: ')) {
+              try {
+                const jsonStr = line.slice(6); // Remove 'data: ' prefix
+                const data = JSON.parse(jsonStr);
+
+                if (data.error) {
+                  onError?.(data.error);
+                  setError(data.error);
+                  break;
+                }
+
+                if (data.chunk !== undefined) {
+                  onChunk(data.chunk, {
+                    used_rag: data.used_rag,
+                    disease_detected: data.disease_detected,
+                    done: data.done,
+                  });
+                }
+              } catch (parseErr) {
+                console.error('Error parsing SSE line:', line, parseErr);
+              }
+            }
+          }
+
+          // Keep incomplete line in buffer
+          buffer = lines[lines.length - 1];
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to send message';
+        setError(errorMsg);
+        onError?.(errorMsg);
+        console.error('Error sending message stream:', err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
   const uploadImage = useCallback(
     async (
       sessionId: string,
@@ -164,6 +253,7 @@ export const useChatbotAPI = () => {
     error,
     startConversation,
     sendMessage,
+    sendMessageStream,
     uploadImage,
     endSession,
   };

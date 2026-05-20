@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import {
   Bot,
   Send,
@@ -12,6 +13,17 @@ import {
   Upload,
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
+
+// Add CSS for blinking cursor
+const cursorStyles = `
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+  .cursor-blink {
+    animation: blink 1s infinite;
+  }
+`;
 
 interface Message {
   id: string;
@@ -48,6 +60,46 @@ const SUGGESTED_PROMPTS_CAT = [
   'My cat has a rash on her skin',
 ];
 
+// Custom markdown renderer components - ChatGPT style
+const MarkdownComponents = {
+  h1: ({ ...props }: any) => (
+    <h1 className="text-2xl font-bold mt-4 mb-3 text-slate-900 dark:text-white" {...props} />
+  ),
+  h2: ({ ...props }: any) => (
+    <h2 className="text-xl font-bold mt-4 mb-3 text-slate-900 dark:text-white" {...props} />
+  ),
+  h3: ({ ...props }: any) => (
+    <h3 className="text-lg font-bold mt-3 mb-2 text-slate-900 dark:text-white" {...props} />
+  ),
+  p: ({ ...props }: any) => (
+    <p className="mb-3 leading-relaxed text-base" {...props} />
+  ),
+  ul: ({ ...props }: any) => (
+    <ul className="list-disc list-outside mb-3 space-y-2 ml-4" {...props} />
+  ),
+  ol: ({ ...props }: any) => (
+    <ol className="list-decimal list-outside mb-3 space-y-2 ml-4" {...props} />
+  ),
+  li: ({ ...props }: any) => (
+    <li className="text-base leading-relaxed" {...props} />
+  ),
+  strong: ({ ...props }: any) => (
+    <strong className="font-bold text-slate-900 dark:text-white" {...props} />
+  ),
+  em: ({ ...props }: any) => (
+    <em className="italic text-slate-800 dark:text-slate-100" {...props} />
+  ),
+  code: ({ inline, ...props }: any) => 
+    inline ? (
+      <code className="bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
+    ) : (
+      <code className="block bg-slate-900 dark:bg-slate-950 text-slate-100 p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3" {...props} />
+    ),
+  blockquote: ({ ...props }: any) => (
+    <blockquote className="border-l-4 border-primary-500 pl-4 italic my-3 text-slate-700 dark:text-slate-300" {...props} />
+  ),
+};
+
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -55,9 +107,23 @@ export default function AIAssistant() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [showPetSelector, setShowPetSelector] = useState(true);
   const [imageInputKey, setImageInputKey] = useState(0);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const { startConversation, sendMessage, uploadImage, loading: apiLoading } = useChatbotAPI();
+  const { 
+    startConversation, 
+    sendMessageStream, 
+    uploadImage, 
+    loading: apiLoading 
+  } = useChatbotAPI();
+
+  // Inject cursor animation styles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = cursorStyles;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,7 +131,7 @@ export default function AIAssistant() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isTyping]);
+  }, [messages, isTyping, streamingMessageId]);
 
   const handleStartSession = async (animal: 'dog' | 'cat') => {
     setIsTyping(true);
@@ -97,30 +163,63 @@ export default function AIAssistant() {
       content: text,
     };
 
-    setMessages((prev) => [...prev, newUserMsg]);
+    // Create AI message for streaming
+    const aiMessageId = (Date.now() + 1).toString();
+    const aiMsg: Message = {
+      id: aiMessageId,
+      role: 'ai',
+      content: '',
+      used_rag: false,
+    };
+
+    setMessages((prev) => [...prev, newUserMsg, aiMsg]);
     setInput('');
     setIsTyping(true);
+    setStreamingMessageId(aiMessageId);
 
-    const response = await sendMessage(session.session_id, text);
-    setIsTyping(false);
+    // Stream the response
+    await sendMessageStream(
+      session.session_id,
+      text,
+      (chunk, metadata) => {
+        // Update the message with streamed content
+        setMessages((prev) => {
+          const updatedMessages = [...prev];
+          const messageIndex = updatedMessages.findIndex((m) => m.id === aiMessageId);
 
-    if (response) {
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'ai',
-        content: response.bot_response,
-        used_rag: response.used_rag,
-      };
+          if (messageIndex !== -1) {
+            updatedMessages[messageIndex].content += chunk;
+            updatedMessages[messageIndex].used_rag = metadata.used_rag;
 
-      // If disease detected, add image upload prompt
-      if (response.disease_detected && !text.toLowerCase().includes('image')) {
-        setSession((prev) =>
-          prev ? { ...prev, disease_detected: response.disease_detected } : null
-        );
+            if (metadata.disease_detected && !session.disease_detected) {
+              setSession((s) =>
+                s ? { ...s, disease_detected: metadata.disease_detected } : null
+              );
+            }
+          }
+
+          return updatedMessages;
+        });
+
+        scrollToBottom();
+      },
+      (error) => {
+        // Error handling
+        setMessages((prev) => {
+          const updatedMessages = [...prev];
+          const messageIndex = updatedMessages.findIndex((m) => m.id === aiMessageId);
+
+          if (messageIndex !== -1) {
+            updatedMessages[messageIndex].content = `❌ Error: ${error}`;
+          }
+
+          return updatedMessages;
+        });
       }
+    );
 
-      setMessages((prev) => [...prev, aiMsg]);
-    }
+    setIsTyping(false);
+    setStreamingMessageId(null);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,21 +239,25 @@ export default function AIAssistant() {
       const analysisMsg: Message = {
         id: Date.now().toString(),
         role: 'ai',
-        content: `I've analyzed the image and identified a potential condition: **${response.disease_class}**\n\n${response.explanation}`,
+        content: response.explanation,
         isAnalysis: true,
         analysisData: {
           condition: response.disease_class,
           confidence,
           actions: [
-            'Schedule a veterinary appointment for professional diagnosis',
-            'Monitor your pet for any changes in symptoms',
-            'Keep detailed notes about when symptoms started',
+            '🏥 Schedule a veterinary appointment for professional diagnosis',
+            '📸 Monitor your pet for any changes in symptoms',
+            '📝 Keep detailed notes about when symptoms started',
           ],
-          dos: ['Take clear photos for your vet', 'Track any behavior changes', 'Keep your pet comfortable'],
+          dos: [
+            '✅ Take clear photos for your vet',
+            '✅ Track any behavior changes',
+            '✅ Keep your pet comfortable',
+          ],
           donts: [
-            'Do NOT self-diagnose or delay professional care',
-            'Do NOT apply unproven treatments',
-            'Do NOT delay seeking professional advice',
+            '❌ Do NOT self-diagnose or delay professional care',
+            '❌ Do NOT apply unproven treatments',
+            '❌ Do NOT delay seeking professional advice',
           ],
         },
       };
@@ -273,20 +376,38 @@ export default function AIAssistant() {
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-xs lg:max-w-md ${
+                    className={`${
                       msg.role === 'user'
-                        ? 'bg-primary-600 text-white rounded-2xl rounded-tr-sm'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl rounded-tl-sm'
-                    } px-4 py-3`}
+                        ? 'max-w-lg bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3'
+                        : 'w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl rounded-tl-sm px-6 py-4'
+                    }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'ai' ? (
+                      <div className="w-full">
+                        <ReactMarkdown components={MarkdownComponents}>
+                          {msg.content || (streamingMessageId === msg.id ? '▌' : '')}
+                        </ReactMarkdown>
+                        {streamingMessageId === msg.id && msg.content && (
+                          <span className="cursor-blink text-base">▌</span>
+                        )}
+                        
+                        {/* RAG Indicator */}
+                        {msg.used_rag && (
+                          <div className="mt-3 pt-3 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                            <span>🔍</span> Information from knowledge base
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    )}
 
                     {msg.isAnalysis && msg.analysisData && (
                       <div className="mt-4 space-y-3 pt-3 border-t border-current border-opacity-20">
                         <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3">
                           <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-sm">
-                              {msg.analysisData.condition}
+                            <h4 className="font-semibold text-sm flex items-center gap-2">
+                              <span>🔬</span> {msg.analysisData.condition}
                             </h4>
                             <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-1 rounded">
                               {msg.analysisData.confidence}% confidence
@@ -295,8 +416,8 @@ export default function AIAssistant() {
 
                           {/* Recommended Actions */}
                           <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                              Recommended Actions
+                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
+                              <span>🎯</span> Recommended Actions
                             </h5>
                             {msg.analysisData.actions.map((action, idx) => (
                               <div key={idx} className="flex items-start gap-2 text-xs">
@@ -308,8 +429,8 @@ export default function AIAssistant() {
 
                           {/* DO's */}
                           <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                              DO's
+                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
+                              <span>✅</span> DO's
                             </h5>
                             {msg.analysisData.dos.map((item, idx) => (
                               <div key={idx} className="flex items-start gap-2 text-xs">
@@ -321,8 +442,8 @@ export default function AIAssistant() {
 
                           {/* DON'Ts */}
                           <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                              DON'Ts
+                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
+                              <span>❌</span> DON'Ts
                             </h5>
                             {msg.analysisData.donts.map((item, idx) => (
                               <div key={idx} className="flex items-start gap-2 text-xs">
@@ -336,7 +457,7 @@ export default function AIAssistant() {
                         <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3 flex items-start gap-2 text-xs">
                           <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                           <span>
-                            This is an AI analysis. For professional diagnosis, please consult a veterinarian.
+                            ⚠️ This is an AI analysis. For professional diagnosis, please consult a veterinarian.
                           </span>
                         </div>
                       </div>
