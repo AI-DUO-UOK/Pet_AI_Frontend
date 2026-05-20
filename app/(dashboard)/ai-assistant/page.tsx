@@ -122,7 +122,9 @@ export default function AIAssistant() {
     const style = document.createElement('style');
     style.textContent = cursorStyles;
     document.head.appendChild(style);
-    return () => document.head.removeChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   const scrollToBottom = () => {
