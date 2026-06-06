@@ -99,6 +99,42 @@ const MarkdownComponents = {
   blockquote: ({ ...props }: any) => (
     <blockquote className="border-l-4 border-primary-500 pl-4 italic my-3 text-slate-700 dark:text-slate-300" {...props} />
   ),
+  // Table styling - Professional markdown tables
+  table: ({ ...props }: any) => (
+    <div className="my-4 overflow-x-auto rounded-lg border border-slate-300 dark:border-slate-700">
+      <table className="w-full border-collapse bg-white dark:bg-slate-900" {...props} />
+    </div>
+  ),
+  thead: ({ ...props }: any) => (
+    <thead className="bg-slate-100 dark:bg-slate-800" {...props} />
+  ),
+  tbody: ({ ...props }: any) => (
+    <tbody className="divide-y divide-slate-200 dark:divide-slate-700" {...props} />
+  ),
+  tr: ({ children, ...props }: any) => {
+    // Add alternating row colors for tbody rows
+    const isHeaderRow = false;
+    return (
+      <tr 
+        className="divide-x divide-slate-200 dark:divide-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" 
+        {...props}
+      >
+        {children}
+      </tr>
+    );
+  },
+  th: ({ ...props }: any) => (
+    <th 
+      className="px-4 py-3 text-left font-bold text-slate-900 dark:text-white whitespace-nowrap text-sm"
+      {...props} 
+    />
+  ),
+  td: ({ ...props }: any) => (
+    <td 
+      className="px-4 py-3 text-slate-700 dark:text-slate-300 text-sm whitespace-normal break-words"
+      {...props} 
+    />
+  ),
 };
 
 export default function AIAssistant() {
