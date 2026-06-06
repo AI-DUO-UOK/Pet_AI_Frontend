@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   ArrowLeft,
@@ -35,30 +35,18 @@ interface Appointment {
   };
 }
 
-const MOCK_PET_DETAILS = {
-  '1': {
-    name: 'Max',
-    type: 'Dog',
-    breed: 'Golden Retriever',
-    age: '3 years',
-    weight: '32 kg',
-    bloodType: 'Dog Type A',
-    dateOfBirth: 'April 15, 2021',
-    imageUrl: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=400&fit=crop',
-    microchipId: 'ABC123456789',
-  },
-  '2': {
-    name: 'Luna',
-    type: 'Cat',
-    breed: 'British Shorthair',
-    age: '2 years',
-    weight: '4.5 kg',
-    bloodType: 'Cat Type B',
-    dateOfBirth: 'June 20, 2022',
-    imageUrl: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=400&fit=crop',
-    microchipId: 'XYZ987654321',
-  },
-};
+interface PetDetails {
+  id: string;
+  name: string;
+  type: string;
+  breed: string;
+  date_of_birth: string;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  blood_type?: string | null;
+  profile_image_url?: string | null;
+  microchip_id?: string | null;
+}
 
 const MOCK_APPOINTMENTS: Record<string, Appointment[]> = {
   '1': [
@@ -187,7 +175,57 @@ export default function PetProfile() {
   const params = useParams();
   const petId = params.id as string;
 
-  const petDetails = MOCK_PET_DETAILS[petId as keyof typeof MOCK_PET_DETAILS];
+  const [petDetails, setPetDetails] = useState<PetDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPet = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch(`http://localhost:8000/api/pets/${petId}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to load pet (${response.status}): ${errorText}`);
+        }
+
+        const data = await response.json();
+        setPetDetails(data.pet);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load pet profile');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (petId) fetchPet();
+  }, [petId]);
+
+  const calculateAge = (dateOfBirth: string) => {
+    if (!dateOfBirth) return '';
+    const birthDate = new Date(dateOfBirth);
+    if (Number.isNaN(birthDate.getTime())) return '';
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age > 0 ? `${age} years` : 'Less than 1 year';
+  };
+
+  const formatDateOfBirth = (dateOfBirth: string) => {
+    if (!dateOfBirth) return '';
+    const parsed = new Date(dateOfBirth);
+    if (Number.isNaN(parsed.getTime())) return dateOfBirth;
+    return parsed.toLocaleDateString();
+  };
+
+  const petImageUrl = petDetails?.profile_image_url ||
+    (petDetails?.type?.toLowerCase() === 'cat'
+      ? 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=400&fit=crop'
+      : 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=400&fit=crop');
+
   const appointments = MOCK_APPOINTMENTS[petId as keyof typeof MOCK_APPOINTMENTS] || [];
   const medicalHistory = MOCK_MEDICAL_HISTORY[petId as keyof typeof MOCK_MEDICAL_HISTORY] || [];
 
@@ -199,10 +237,18 @@ export default function PetProfile() {
     comment: '',
   });
 
-  if (!petDetails) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-slate-500 dark:text-slate-400">Pet not found</p>
+        <p className="text-slate-500 dark:text-slate-400">Loading pet profile...</p>
+      </div>
+    );
+  }
+
+  if (error || !petDetails) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-slate-500 dark:text-slate-400">{error || 'Pet not found'}</p>
       </div>
     );
   }
@@ -240,7 +286,7 @@ export default function PetProfile() {
           <div className="flex justify-center md:col-span-1">
             <div className="relative">
               <img
-                src={petDetails.imageUrl}
+                src={petImageUrl}
                 alt={petDetails.name}
                 className="object-cover w-48 h-48 border-4 rounded-2xl border-primary-500/20"
               />
@@ -266,7 +312,7 @@ export default function PetProfile() {
                   Age
                 </p>
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {petDetails.age}
+                  {calculateAge(petDetails.date_of_birth)}
                 </p>
               </div>
               <div>
@@ -274,7 +320,7 @@ export default function PetProfile() {
                   Weight
                 </p>
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {petDetails.weight}
+                  {petDetails.weight ? `${petDetails.weight}${petDetails.weight_unit ? ` ${petDetails.weight_unit}` : ''}` : '—'}
                 </p>
               </div>
               <div>
@@ -282,7 +328,7 @@ export default function PetProfile() {
                   Blood Type
                 </p>
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {petDetails.bloodType}
+                  {petDetails.blood_type || '—'}
                 </p>
               </div>
               <div className="col-span-2">
@@ -290,15 +336,7 @@ export default function PetProfile() {
                   Date of Birth
                 </p>
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {petDetails.dateOfBirth}
-                </p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
-                  Microchip ID
-                </p>
-                <p className="font-mono text-lg font-semibold text-slate-900 dark:text-white">
-                  {petDetails.microchipId}
+                  {formatDateOfBirth(petDetails.date_of_birth)}
                 </p>
               </div>
             </div>

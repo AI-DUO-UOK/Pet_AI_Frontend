@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Building2,
@@ -8,48 +8,96 @@ import {
   AlertCircle,
   XCircle,
   TrendingUp,
+  Loader,
 } from 'lucide-react';
 
-const ADMIN_STATS = [
+type AdminStats = {
+  total_clinics: number;
+  pending_verifications: number;
+  approved_clinics: number;
+  rejected: number;
+};
+
+type RecentVerification = {
+  clinic: string;
+  action: string;
+  time: string;
+  badge: string;
+};
+
+const STAT_META = [
   {
+    key: 'total_clinics',
     title: 'Total Clinics',
-    value: '142',
-    trend: '+8 this month',
     icon: Building2,
-    color: 'bg-primary-500',
     bgLight: 'bg-primary-50 dark:bg-primary-500/10',
     textLight: 'text-primary-600 dark:text-primary-400',
+    trend: 'All registered clinics',
   },
   {
+    key: 'pending_verifications',
     title: 'Pending Verifications',
-    value: '12',
-    trend: 'Needs review',
     icon: AlertCircle,
-    color: 'bg-amber-500',
     bgLight: 'bg-amber-50 dark:bg-amber-500/10',
     textLight: 'text-amber-600 dark:text-amber-400',
+    trend: 'Needs review',
   },
   {
+    key: 'approved_clinics',
     title: 'Approved Clinics',
-    value: '125',
-    trend: '88% approval rate',
     icon: CheckCircle2,
-    color: 'bg-green-500',
     bgLight: 'bg-green-50 dark:bg-green-500/10',
     textLight: 'text-green-600 dark:text-green-400',
+    trend: 'Verified clinics',
   },
   {
+    key: 'rejected',
     title: 'Rejected',
-    value: '5',
-    trend: 'Non-compliance',
     icon: XCircle,
-    color: 'bg-red-500',
     bgLight: 'bg-red-50 dark:bg-red-500/10',
     textLight: 'text-red-600 dark:text-red-400',
+    trend: 'Currently unavailable',
   },
 ];
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [recent, setRecent] = useState<RecentVerification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const adminPassword = localStorage.getItem('admin_password');
+        if (!adminPassword) {
+          throw new Error('Admin password not found. Please log in again.');
+        }
+
+        const response = await fetch('http://localhost:8000/api/admin/stats', {
+          headers: {
+            Authorization: `Bearer ${adminPassword}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to load admin stats (${response.status}): ${errorText}`);
+        }
+
+        const data = await response.json();
+        setStats(data.stats);
+        setRecent(data.recent_verifications || []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load admin dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -63,9 +111,23 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
+      {loading && (
+        <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+          <Loader className="w-5 h-5 animate-spin" />
+          Loading dashboard data...
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {ADMIN_STATS.map((stat, index) => {
+        {STAT_META.map((stat, index) => {
           const Icon = stat.icon;
+          const value = stats ? stats[stat.key as keyof AdminStats] : 0;
           return (
             <motion.div
               key={stat.title}
@@ -81,7 +143,7 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <h3 className="text-3xl font-bold text-slate-900 dark:text-white mb-1">
-                  {stat.value}
+                  {value}
                 </h3>
                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
                   {stat.title}
@@ -147,33 +209,14 @@ export default function AdminDashboard() {
         </div>
 
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
-          {[
-            {
-              clinic: 'Happy Paws Clinic',
-              action: 'Approved',
-              time: '2 hours ago',
-              badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-            },
-            {
-              clinic: 'Vet Care Plus',
-              action: 'Rejected',
-              time: '5 hours ago',
-              badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-            },
-            {
-              clinic: 'Elite Animal Hospital',
-              action: 'Pending',
-              time: '12 hours ago',
-              badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-            },
-          ].map((item, idx) => (
+          {recent.map((item, idx) => (
             <div key={idx} className="p-6 flex items-center justify-between">
               <div>
                 <p className="font-semibold text-slate-900 dark:text-white">
                   {item.clinic}
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {item.time}
+                  {item.time ? new Date(item.time).toLocaleString() : 'Recently'}
                 </p>
               </div>
               <span
@@ -183,6 +226,11 @@ export default function AdminDashboard() {
               </span>
             </div>
           ))}
+          {!recent.length && !loading && (
+            <div className="p-6 text-slate-500 dark:text-slate-400">
+              No recent verification activity yet.
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

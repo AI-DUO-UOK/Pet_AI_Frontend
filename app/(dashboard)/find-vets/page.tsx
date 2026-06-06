@@ -5,49 +5,43 @@ import { useRouter } from 'next/navigation';
 import { Search, MapPin, Star, Filter, MapPinIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const MOCK_CLINICS = [
-  {
-    id: '1',
-    clinicName: 'Paws & Claws Veterinary Clinic',
-    doctors: ['Dr. Sarah Jenkins', 'Dr. David Martinez', 'Dr. Lisa Wong'],
-    specializations: ['Dogs', 'Cats', 'Surgery'],
-    rating: 4.9,
-    reviews: 128,
-    distance: '2.4 km',
-    imageUrl: 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=400&h=400&fit=crop',
-    operatingHours: 'Mon-Fri: 8am-6pm, Sat: 9am-3pm',
-    address: '123 Pet Street, New York, NY',
-  },
-  {
-    id: '2',
-    clinicName: 'City Center Animal Hospital',
-    doctors: ['Dr. Michael Chen', 'Dr. Anna Rodriguez', 'Dr. James Peterson'],
-    specializations: ['Cats Only', 'Internal Medicine', 'Emergency Care'],
-    rating: 4.8,
-    reviews: 95,
-    distance: '3.1 km',
-    imageUrl: 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=400&h=400&fit=crop',
-    operatingHours: '24/7 Emergency',
-    address: '456 Animal Ave, New York, NY',
-  },
-  {
-    id: '3',
-    clinicName: 'Happy Tails Vet Care',
-    doctors: ['Dr. Emily Rodriguez', 'Dr. Robert Chen', 'Dr. Sarah Kim'],
-    specializations: ['Dogs', 'Dermatology', 'Behavior'],
-    rating: 4.7,
-    reviews: 210,
-    distance: '5.0 km',
-    imageUrl: 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=400&h=400&fit=crop',
-    operatingHours: 'Mon-Sat: 8am-5pm, Sun: 10am-2pm',
-    address: '789 Vet Lane, New York, NY',
-  },
-];
+type ClinicListItem = {
+  id: string;
+  clinic_name: string;
+  clinic_logo_url?: string | null;
+  address?: string | null;
+  doctors?: string[];
+  operating_hours?: string | null;
+};
+
+const FALLBACK_CARD_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=400&h=400&fit=crop';
 
 export default function FindVets() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState('All');
   const filters = ['All', 'Dogs', 'Cats', 'Surgery', 'Highest Rated'];
+  const [clinics, setClinics] = useState<ClinicListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch('http://localhost:8000/api/clinics');
+        if (!res.ok) throw new Error('Failed to fetch clinics');
+        const data = await res.json();
+        if (data && Array.isArray(data.clinics)) {
+          setClinics(data.clinics);
+        }
+      } catch (e) {
+        // fallback: leave clinics empty and UI will show no items
+        console.warn('Load clinics failed', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -108,7 +102,7 @@ export default function FindVets() {
 
       {/* Results Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {MOCK_CLINICS.map((clinic, index) => (
+        {(loading ? [] : (clinics.length ? clinics : [])).map((clinic, index) => (
           <motion.div
             key={clinic.id}
             initial={{ opacity: 0, y: 20 }}
@@ -116,17 +110,17 @@ export default function FindVets() {
             transition={{ delay: index * 0.1 }}
             className="overflow-hidden transition-all bg-white border shadow-sm dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800 hover:shadow-md"
           >
-            <div className="relative h-48 overflow-hidden">
+              <div className="relative h-48 overflow-hidden">
               <img
-                src={clinic.imageUrl}
-                alt={clinic.clinicName}
+                src={clinic.clinic_logo_url || FALLBACK_CARD_IMAGE}
+                alt={clinic.clinic_name || 'Clinic'}
                 className="object-cover w-full h-full transition-transform duration-300 hover:scale-105"
               />
             </div>
 
             <div className="p-5">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                {clinic.clinicName}
+                {clinic.clinic_name}
               </h3>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {clinic.address}
@@ -138,19 +132,15 @@ export default function FindVets() {
                     <Star
                       key={i}
                       className={`w-4 h-4 ${
-                        i < Math.floor(clinic.rating)
+                        i < 4
                           ? 'fill-amber-400 text-amber-400'
                           : 'text-slate-300 dark:text-slate-600'
                       }`}
                     />
                   ))}
                 </div>
-                <span className="text-sm font-medium text-slate-900 dark:text-white">
-                  {clinic.rating}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  ({clinic.reviews})
-                </span>
+                <span className="text-sm font-medium text-slate-900 dark:text-white">4.8</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">(—)</span>
               </div>
 
               {/* Clinic Info */}
@@ -167,7 +157,7 @@ export default function FindVets() {
 
               {/* Specializations */}
               <div className="flex flex-wrap gap-2 mt-4">
-                {clinic.specializations.map((spec) => (
+                {((clinic as any).specializations || []).map((spec: string) => (
                   <span
                     key={spec}
                     className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2.5 py-1 rounded-full"
@@ -180,10 +170,10 @@ export default function FindVets() {
               {/* Doctors Team */}
               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                  Our Team ({clinic.doctors.length})
+                  Our Team ({(clinic.doctors || []).length})
                 </p>
                 <div className="space-y-1">
-                  {clinic.doctors.map((doctor) => (
+                  {(clinic.doctors || []).map((doctor) => (
                     <p key={doctor} className="text-xs text-slate-500 dark:text-slate-400">
                       • {doctor}
                     </p>

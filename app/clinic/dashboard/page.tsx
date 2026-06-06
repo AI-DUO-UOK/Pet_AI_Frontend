@@ -60,20 +60,20 @@ export default function ClinicDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Verification Banner */}
+      {/* Verification Banner - Info only, no feature restrictions */}
       {isPending && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-4 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+          className="flex items-start gap-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
         >
-          <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="font-semibold text-amber-900 dark:text-amber-200">
-              Your clinic is under verification ⏳
+            <h3 className="font-semibold text-blue-900 dark:text-blue-200">
+              Verification in Progress ⏳
             </h3>
-            <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">
-              You will gain full access once approved by admin. Some features are currently disabled.
+            <p className="mt-1 text-sm text-blue-800 dark:text-blue-300">
+              Your clinic is under review by admin. You have full access to all features while we verify your details.
             </p>
           </div>
         </motion.div>
@@ -167,7 +167,7 @@ export default function ClinicDashboard() {
         </motion.div>
       )}
 
-      {/* Limited Access Notice */}
+      {/* Limited Access Notice - Pending clinics have LIMITED features */}
       {isPending && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -175,7 +175,7 @@ export default function ClinicDashboard() {
           className="p-6 border bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-slate-200 dark:border-slate-700"
         >
           <h3 className="mb-4 font-semibold text-slate-900 dark:text-white">
-            Limited Access
+            Limited Access - Pending Verification
           </h3>
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -200,7 +200,7 @@ export default function ClinicDashboard() {
         </motion.div>
       )}
 
-      {/* Stats Grid - Visible only if verified or show demo */}
+      {/* Stats Grid - Visible only if verified */}
       {!isPending && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {DEMO_STATS.map((stat, index) => {
@@ -235,7 +235,7 @@ export default function ClinicDashboard() {
         </div>
       )}
 
-      {/* Allowed Features Section - Pending */}
+      {/* Info Section - Pending */}
       {isPending && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -243,7 +243,7 @@ export default function ClinicDashboard() {
           className="p-6 border border-blue-200 bg-blue-50 dark:bg-blue-900/20 rounded-2xl dark:border-blue-800"
         >
           <h3 className="mb-4 font-semibold text-blue-900 dark:text-blue-200">
-            You can already:
+            What you can do while pending:
           </h3>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ export default function ClinicDashboard() {
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <span className="text-blue-800 dark:text-blue-300">
-                View your submission details
+                View your submission status
               </span>
             </div>
           </div>

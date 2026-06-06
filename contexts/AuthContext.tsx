@@ -26,17 +26,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const mockUser: User = {
-  id: '1',
-  name: 'Sarah Jenkins',
-  email: 'sarah@example.com',
-  avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=faces&q=80'
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [role, setRoleState] = useState<Role>('owner');
-  const [user, setUser] = useState<User | null>(mockUser);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [role, setRoleState] = useState<Role>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // Hydrate from localStorage
   useEffect(() => {

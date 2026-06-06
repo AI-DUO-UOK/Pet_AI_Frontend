@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { SupabaseProvider } from '@/contexts/SupabaseContext';
 import './globals.css';
 
 export const viewport: Viewport = {
@@ -27,7 +28,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            <SupabaseProvider>
+              {children}
+            </SupabaseProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
