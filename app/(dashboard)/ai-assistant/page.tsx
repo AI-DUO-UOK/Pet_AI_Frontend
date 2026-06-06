@@ -30,6 +30,10 @@ interface Message {
   id: string;
   role: 'user' | 'ai';
   content: string;
+  image?: {
+    src: string;
+    name: string;
+  };
   isAnalysis?: boolean;
   analysisData?: {
     condition: string;
@@ -326,19 +330,32 @@ export default function AIAssistant() {
 
     // If there's an image, upload it first
     if (selectedImage) {
+      const imageFile = selectedImage;
+      const imageSrc = imagePreview;
+      const promptText = text.trim();
+
       // First send the user message with image
       const newUserMsg: Message = {
         id: Date.now().toString(),
         role: 'user',
-        content: text || '📸 Image analysis requested',
+        content: promptText || '📸 Image analysis requested',
+        image: imageSrc
+          ? {
+              src: imageSrc,
+              name: imageFile.name,
+            }
+          : undefined,
       };
 
       setMessages((prev) => [...prev, newUserMsg]);
       setInput('');
+      setSelectedImage(null);
+      setImagePreview(null);
+      setImageInputKey((prev) => prev + 1);
       setIsTyping(true);
 
       const diseaseType = (session.disease_detected || 'skin') as 'skin' | 'eye';
-      const response = await uploadImage(session.session_id, diseaseType, selectedImage);
+      const response = await uploadImage(session.session_id, diseaseType, imageFile);
 
       setIsTyping(false);
 
@@ -375,8 +392,6 @@ export default function AIAssistant() {
         setMessages((prev) => [...prev, analysisMsg]);
       }
 
-      // Clear image after sending
-      removeImage();
     } else {
       // No image, use regular handleSend
       handleSend(text);
@@ -516,7 +531,16 @@ export default function AIAssistant() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      <div className="space-y-3">
+                        {msg.image && (
+                          <img
+                            src={msg.image.src}
+                            alt={msg.image.name}
+                            className="max-h-64 w-auto max-w-full rounded-xl object-contain"
+                          />
+                        )}
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      </div>
                     )}
 
                     {msg.isAnalysis && msg.analysisData && (
