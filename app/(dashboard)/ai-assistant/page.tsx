@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Bot,
   Send,
@@ -127,6 +128,17 @@ export default function AIAssistant() {
     };
   }, []);
 
+  // Log messages for debugging duplication
+  useEffect(() => {
+    console.log('[RENDER] Messages changed. Count:', messages.length);
+    messages.forEach((msg, idx) => {
+      console.log(`[RENDER] Message ${idx}: ID=${msg.id}, Role=${msg.role}, Content Length=${msg.content.length}, Is Streaming=${streamingMessageId === msg.id}`);
+      if (msg.content.length < 200) {
+        console.log(`[RENDER] Message ${idx} content:`, msg.content);
+      }
+    });
+  }, [messages, streamingMessageId]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -174,23 +186,42 @@ export default function AIAssistant() {
       used_rag: false,
     };
 
-    setMessages((prev) => [...prev, newUserMsg, aiMsg]);
+    console.log('[UI] Creating messages. User ID:', newUserMsg.id, 'AI ID:', aiMessageId);
+
+    setMessages((prev) => {
+      const newMessages = [...prev, newUserMsg, aiMsg];
+      console.log('[UI] Messages updated. Total messages:', newMessages.length, 'AI message content length:', aiMsg.content.length);
+      return newMessages;
+    });
+
     setInput('');
     setIsTyping(true);
     setStreamingMessageId(aiMessageId);
+
+    console.log('[UI] Starting stream for AI message:', aiMessageId);
+
+    let chunkCounter = 0;
+    let accumulatedContent = '';
 
     // Stream the response
     await sendMessageStream(
       session.session_id,
       text,
       (chunk, metadata) => {
+        chunkCounter++;
+        accumulatedContent += chunk;
+        console.log('[UI] Chunk', chunkCounter, '- Length:', chunk.length, 'Accumulated length:', accumulatedContent.length, 'Metadata:', { used_rag: metadata.used_rag, disease_detected: metadata.disease_detected, done: metadata.done });
+
         // Update the message with streamed content
         setMessages((prev) => {
           const updatedMessages = [...prev];
           const messageIndex = updatedMessages.findIndex((m) => m.id === aiMessageId);
 
           if (messageIndex !== -1) {
+            const oldLength = updatedMessages[messageIndex].content.length;
             updatedMessages[messageIndex].content += chunk;
+            const newLength = updatedMessages[messageIndex].content.length;
+            console.log('[UI] State update for AI message. Old length:', oldLength, 'New length:', newLength, 'Chunk appended:', chunk.length);
             updatedMessages[messageIndex].used_rag = metadata.used_rag;
 
             if (metadata.disease_detected && !session.disease_detected) {
@@ -198,6 +229,8 @@ export default function AIAssistant() {
                 s ? { ...s, disease_detected: metadata.disease_detected } : null
               );
             }
+          } else {
+            console.warn('[UI] Could not find AI message with ID:', aiMessageId);
           }
 
           return updatedMessages;
@@ -207,6 +240,7 @@ export default function AIAssistant() {
       },
       (error) => {
         // Error handling
+        console.error('[UI] Stream error:', error);
         setMessages((prev) => {
           const updatedMessages = [...prev];
           const messageIndex = updatedMessages.findIndex((m) => m.id === aiMessageId);
@@ -220,6 +254,7 @@ export default function AIAssistant() {
       }
     );
 
+    console.log('[UI] Stream completed. Final accumulated content length:', accumulatedContent.length);
     setIsTyping(false);
     setStreamingMessageId(null);
   };
@@ -386,7 +421,10 @@ export default function AIAssistant() {
                   >
                     {msg.role === 'ai' ? (
                       <div className="w-full">
-                        <ReactMarkdown components={MarkdownComponents}>
+                        <ReactMarkdown 
+                          components={MarkdownComponents}
+                          remarkPlugins={[remarkGfm]}
+                        >
                           {msg.content || (streamingMessageId === msg.id ? '▌' : '')}
                         </ReactMarkdown>
                         {streamingMessageId === msg.id && msg.content && (

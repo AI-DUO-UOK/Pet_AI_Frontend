@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false, // DISABLED: Was causing double rendering in development
   typescript: {
     ignoreBuildErrors: false,
   },

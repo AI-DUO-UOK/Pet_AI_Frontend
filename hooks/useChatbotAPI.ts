@@ -132,10 +132,17 @@ export const useChatbotAPI = () => {
 
         const decoder = new TextDecoder();
         let buffer = '';
+        let chunkCount = 0;
+        let totalChunkSize = 0;
+
+        console.log('[STREAM] Starting streaming response');
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            console.log('[STREAM] Stream ended. Total chunks:', chunkCount, 'Total size:', totalChunkSize);
+            break;
+          }
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
@@ -150,12 +157,16 @@ export const useChatbotAPI = () => {
                 const data = JSON.parse(jsonStr);
 
                 if (data.error) {
+                  console.error('[STREAM] Error received:', data.error);
                   onError?.(data.error);
                   setError(data.error);
                   break;
                 }
 
                 if (data.chunk !== undefined) {
+                  chunkCount++;
+                  totalChunkSize += data.chunk.length;
+                  console.log('[STREAM] Chunk', chunkCount, '- Length:', data.chunk.length, 'Done:', data.done, 'Content:', JSON.stringify(data.chunk.substring(0, 50)));
                   onChunk(data.chunk, {
                     used_rag: data.used_rag,
                     disease_detected: data.disease_detected,
