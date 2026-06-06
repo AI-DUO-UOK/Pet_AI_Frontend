@@ -11,9 +11,9 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  Upload,
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Add CSS for blinking cursor
 const cursorStyles = `
@@ -48,7 +48,26 @@ interface Message {
 interface SessionData {
   session_id: string;
   animal: 'dog' | 'cat';
+  pet_name?: string;
   disease_detected?: string | null;
+}
+
+interface PetProfile {
+  id: string;
+  name: string;
+  type: string;
+  breed?: string;
+  date_of_birth?: string;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  gender?: string | null;
+  blood_type?: string | null;
+  allergies?: string | null;
+  medical_conditions?: string | null;
+  notes?: string | null;
+  microchip_id?: string | null;
+  profile_image_url?: string | null;
+  age?: string;
 }
 
 const SUGGESTED_PROMPTS_DOG = [
@@ -64,6 +83,13 @@ const SUGGESTED_PROMPTS_CAT = [
   'What are the vaccination requirements for kittens?',
   'My cat has a rash on her skin',
 ];
+
+const FALLBACK_IMAGE_BY_TYPE: Record<'dog' | 'cat', string> = {
+  dog: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=400&fit=crop',
+  cat: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=400&fit=crop',
+};
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 
 // Custom markdown renderer components - ChatGPT style
 const MarkdownComponents = {
@@ -116,8 +142,6 @@ const MarkdownComponents = {
     <tbody className="divide-y divide-slate-200 dark:divide-slate-700" {...props} />
   ),
   tr: ({ children, ...props }: any) => {
-    // Add alternating row colors for tbody rows
-    const isHeaderRow = false;
     return (
       <tr 
         className="divide-x divide-slate-200 dark:divide-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" 
@@ -142,11 +166,15 @@ const MarkdownComponents = {
 };
 
 export default function AIAssistant() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [session, setSession] = useState<SessionData | null>(null);
   const [showPetSelector, setShowPetSelector] = useState(true);
+  const [pets, setPets] = useState<PetProfile[]>([]);
+  const [isLoadingPets, setIsLoadingPets] = useState(true);
+  const [petsError, setPetsError] = useState<string | null>(null);
   const [imageInputKey, setImageInputKey] = useState(0);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -157,6 +185,80 @@ export default function AIAssistant() {
     uploadImage, 
     loading: apiLoading 
   } = useChatbotAPI();
+
+  const getCurrentUserId = () => {
+    const userId = user?.id || localStorage.getItem('user_id') || '';
+    return UUID_PATTERN.test(userId) ? userId : '';
+  };
+
+  const calculateAge = (dateOfBirth?: string) => {
+    if (!dateOfBirth) return '';
+    const birthDate = new Date(dateOfBirth);
+    if (Number.isNaN(birthDate.getTime())) return '';
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age > 0 ? `${age} years` : 'Less than 1 year';
+  };
+
+  const getPetType = (pet: PetProfile): 'dog' | 'cat' =>
+    pet.type?.toLowerCase() === 'cat' ? 'cat' : 'dog';
+
+  const getPetImageUrl = (pet: PetProfile) => {
+    const type = getPetType(pet);
+    return pet.profile_image_url || FALLBACK_IMAGE_BY_TYPE[type];
+  };
+
+  const getWeightText = (pet: PetProfile) => {
+    if (pet.weight === null || pet.weight === undefined || `${pet.weight}`.trim() === '') {
+      return '';
+    }
+    return `${pet.weight} ${pet.weight_unit || ''}`.trim();
+  };
+
+  const formatDateOfBirth = (dateOfBirth?: string) => {
+    if (!dateOfBirth) return '';
+    const parsed = new Date(dateOfBirth);
+    if (Number.isNaN(parsed.getTime())) return dateOfBirth;
+    return parsed.toLocaleDateString();
+  };
+
+  const fetchPets = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      setPetsError('Please log in again to load your pets.');
+      setIsLoadingPets(false);
+      return;
+    }
+
+    try {
+      setIsLoadingPets(true);
+      setPetsError(null);
+      const response = await fetch(
+        `http://localhost:8000/api/pets?user_id=${encodeURIComponent(userId)}`
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch pets (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      const records: PetProfile[] = data.pets || [];
+      setPets(records.map((pet) => ({ ...pet, age: calculateAge(pet.date_of_birth) })));
+    } catch (error) {
+      console.error('Error fetching pets:', error);
+      setPetsError(error instanceof Error ? error.message : 'Failed to load pets');
+    } finally {
+      setIsLoadingPets(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPets();
+  }, [user?.id]);
 
   // Inject cursor animation styles
   useEffect(() => {
@@ -187,15 +289,32 @@ export default function AIAssistant() {
     scrollToBottom();
   }, [messages, isTyping, streamingMessageId]);
 
-  const handleStartSession = async (animal: 'dog' | 'cat') => {
+  const handleStartSession = async (pet: PetProfile) => {
+    const animal = getPetType(pet);
     setIsTyping(true);
-    const response = await startConversation(animal);
+    const response = await startConversation(animal, {
+      id: pet.id,
+      name: pet.name,
+      type: animal,
+      breed: pet.breed,
+      age: pet.age,
+      date_of_birth: pet.date_of_birth,
+      weight: pet.weight,
+      weight_unit: pet.weight_unit,
+      gender: pet.gender,
+      blood_type: pet.blood_type,
+      allergies: pet.allergies,
+      medical_conditions: pet.medical_conditions,
+      notes: pet.notes,
+      microchip_id: pet.microchip_id,
+    });
     setIsTyping(false);
 
     if (response) {
       setSession({
         session_id: response.session_id,
         animal,
+        pet_name: pet.name,
       });
       setShowPetSelector(false);
       setMessages([
@@ -410,37 +529,124 @@ export default function AIAssistant() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-xl"
+            className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-xl max-h-[85vh] overflow-y-auto"
           >
-            <div className="text-center space-y-6">
+            <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                  What type of pet do you have?
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">
+                  Which pet needs help today?
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400">
-                  Select your pet to get started
+                <p className="text-slate-500 dark:text-slate-400 text-center">
+                  Select one of your pets to start a personalized chat
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => handleStartSession('dog')}
-                  disabled={isTyping || apiLoading}
-                  className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 border-2 border-amber-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-600 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="text-4xl mb-2">🐕</div>
-                  <div className="font-semibold text-slate-900 dark:text-white">Dog</div>
-                </button>
+              {isLoadingPets ? (
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400">
+                  Loading your pets...
+                </div>
+              ) : petsError ? (
+                <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-700 dark:text-red-300">
+                  {petsError}
+                </div>
+              ) : pets.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-6 text-center text-slate-600 dark:text-slate-300">
+                  No pets found. Add a pet profile first to use the AI assistant.
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pets.map((pet) => {
+                    const animal = getPetType(pet);
+                    const weightText = getWeightText(pet);
+                    const dateOfBirth = formatDateOfBirth(pet.date_of_birth);
 
-                <button
-                  onClick={() => handleStartSession('cat')}
-                  disabled={isTyping || apiLoading}
-                  className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-700 border-2 border-purple-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-600 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="text-4xl mb-2">🐱</div>
-                  <div className="font-semibold text-slate-900 dark:text-white">Cat</div>
-                </button>
-              </div>
+                    return (
+                      <button
+                        key={pet.id}
+                        onClick={() => handleStartSession(pet)}
+                        disabled={isTyping || apiLoading}
+                        className="text-left overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <img
+                          src={getPetImageUrl(pet)}
+                          alt={pet.name}
+                          className="h-40 w-full object-cover"
+                        />
+                        <div className="space-y-3 p-4">
+                          <div>
+                            <div className="flex items-center justify-between gap-3">
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                {pet.name}
+                              </h3>
+                              <span className="rounded-full bg-primary-100 dark:bg-primary-900/30 px-2 py-1 text-xs font-semibold text-primary-700 dark:text-primary-300">
+                                {animal === 'dog' ? 'Dog' : 'Cat'}
+                              </span>
+                            </div>
+                            {pet.breed && (
+                              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                {pet.breed}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            {pet.age && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Age
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {pet.age}
+                                </p>
+                              </div>
+                            )}
+                            {weightText && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Weight
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {weightText}
+                                </p>
+                              </div>
+                            )}
+                            {pet.blood_type && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Blood
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {pet.blood_type}
+                                </p>
+                              </div>
+                            )}
+                            {dateOfBirth && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  DOB
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {dateOfBirth}
+                                </p>
+                              </div>
+                            )}
+                            {pet.gender && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Gender
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {pet.gender}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>
@@ -453,7 +659,7 @@ export default function AIAssistant() {
           AI Health Assistant
           {session && (
             <span className="text-lg ml-auto text-slate-500 dark:text-slate-400">
-              {session.animal === 'dog' ? '🐕' : '🐱'} {session.animal.charAt(0).toUpperCase() + session.animal.slice(1)}
+              {session.animal === 'dog' ? '🐕' : '🐱'} {session.pet_name || session.animal.charAt(0).toUpperCase() + session.animal.slice(1)}
             </span>
           )}
         </h1>
