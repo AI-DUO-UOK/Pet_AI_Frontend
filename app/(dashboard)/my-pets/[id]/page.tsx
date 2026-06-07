@@ -14,6 +14,7 @@ import {
   Activity,
   Pill,
   Syringe,
+  Bot,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -339,6 +340,17 @@ export default function PetProfile() {
                   {formatDateOfBirth(petDetails.date_of_birth)}
                 </p>
               </div>
+            </div>
+
+            {/* AI Assistant Button */}
+            <div className="pt-2">
+              <a
+                href={`/ai-assistant?pet_id=${petDetails.id}`}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-primary-600/20"
+              >
+                <Bot className="w-5 h-5" />
+                AI Health Assistant
+              </a>
             </div>
           </div>
         </div>

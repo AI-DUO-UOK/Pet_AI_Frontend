@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams } from 'next/navigation';
 
 // Add CSS for blinking cursor
 const cursorStyles = `
@@ -146,6 +147,8 @@ const MarkdownComponents = {
 
 export default function AIAssistant() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const petIdFromUrl = searchParams.get('pet_id');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -197,13 +200,6 @@ export default function AIAssistant() {
     scrollToBottom();
   }, [messages, isTyping, streamingMessageId]);
 
-  // Fetch user's pets when pet selector is shown
-  useEffect(() => {
-    if (showPetSelector) {
-      fetchUserPets();
-    }
-  }, [showPetSelector, user?.id]);
-
   const getCurrentUserId = () => {
     const userId = user?.id || localStorage.getItem('user_id') || '';
     return UUID_PATTERN.test(userId) ? userId : '';
@@ -221,6 +217,55 @@ export default function AIAssistant() {
     }
     return age > 0 ? `${age} years` : 'Less than 1 year';
   };
+
+  // If pet_id is in URL, auto-start session with that pet
+  useEffect(() => {
+    if (petIdFromUrl && showPetSelector) {
+      autoStartSessionFromPetId(petIdFromUrl);
+    }
+  }, [petIdFromUrl, showPetSelector]);
+
+  const autoStartSessionFromPetId = async (petId: string) => {
+    try {
+      setIsLoadingPets(true);
+      // Fetch pet details from API
+      const response = await fetch(`http://localhost:8000/api/pets/${petId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load pet');
+      }
+      const data = await response.json();
+      const pet = data.pet;
+      if (!pet) {
+        throw new Error('Pet not found');
+      }
+
+      const normalizedType = pet.pet_type?.toLowerCase() === 'cat' ? 'Cat' as const : 'Dog' as const;
+      const petProfile: PetProfile = {
+        id: pet.id,
+        name: pet.name,
+        type: normalizedType,
+        breed: pet.breed || '',
+        age: calculateAge(pet.date_of_birth),
+        imageUrl: pet.profile_image_url || FALLBACK_IMAGE_BY_TYPE[normalizedType],
+      };
+
+      await handleStartSession(petProfile);
+    } catch (err) {
+      console.error('Error auto-starting session:', err);
+      setPetsError('Failed to load pet. Please select from the list.');
+      // Show the pet selector as fallback
+      fetchUserPets();
+    } finally {
+      setIsLoadingPets(false);
+    }
+  };
+
+  // Fetch user's pets when pet selector is shown (and no pet_id in URL)
+  useEffect(() => {
+    if (showPetSelector && !petIdFromUrl) {
+      fetchUserPets();
+    }
+  }, [showPetSelector, petIdFromUrl, user?.id]);
 
   const fetchUserPets = async () => {
     const userId = getCurrentUserId();
