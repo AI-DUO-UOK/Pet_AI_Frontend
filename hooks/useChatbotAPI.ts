@@ -34,17 +34,22 @@ export const useChatbotAPI = () => {
   const [error, setError] = useState<string | null>(null);
 
   const startConversation = useCallback(
-    async (animal: 'dog' | 'cat'): Promise<StartSessionResponse | null> => {
+    async (animal: 'dog' | 'cat', pet_id?: string): Promise<StartSessionResponse | null> => {
       setLoading(true);
       setError(null);
 
       try {
+        const body: any = { animal };
+        if (pet_id) {
+          body.pet_id = pet_id;
+        }
+
         const response = await fetch(`${API_BASE_URL}/api/chat/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ animal }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok) {
