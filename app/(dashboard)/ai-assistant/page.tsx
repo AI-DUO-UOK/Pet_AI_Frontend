@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   XCircle,
   Upload,
+  FileText,
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
 import { useAuth } from '@/contexts/AuthContext';
@@ -163,6 +164,7 @@ export default function AIAssistant() {
     startConversation, 
     sendMessageStream, 
     uploadImage, 
+    uploadDocument,
     loading: apiLoading 
   } = useChatbotAPI();
 
@@ -425,6 +427,12 @@ export default function AIAssistant() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  // Document upload state
+  const [selectedDocument, setSelectedDocument] = useState<File | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [documentInputKey, setDocumentInputKey] = useState(0);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
 
@@ -518,6 +526,58 @@ export default function AIAssistant() {
     } else {
       // No image, use regular handleSend
       handleSend(text);
+    }
+  };
+
+  const handleDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0]) return;
+
+    const file = e.target.files[0];
+    setSelectedDocument(file);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setDocumentPreview(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    setDocumentInputKey((prev) => prev + 1);
+  };
+
+  const removeDocument = () => {
+    setSelectedDocument(null);
+    setDocumentPreview(null);
+    setDocumentInputKey((prev) => prev + 1);
+  };
+
+  const handleSendDocument = async () => {
+    if (!session || !selectedDocument || isTyping || apiLoading) return;
+
+    const newUserMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: '📄 Uploaded a medical document for analysis',
+    };
+
+    setMessages((prev) => [...prev, newUserMsg]);
+    setSelectedDocument(null);
+    setDocumentPreview(null);
+    setDocumentInputKey((prev) => prev + 1);
+    setIsTyping(true);
+
+    const response = await uploadDocument(session.session_id, selectedDocument);
+
+    setIsTyping(false);
+
+    if (response) {
+      const docMsg: Message = {
+        id: Date.now().toString(),
+        role: 'ai',
+        content: response.explanation,
+      };
+
+      setMessages((prev) => [...prev, docMsg]);
     }
   };
 
@@ -837,6 +897,46 @@ export default function AIAssistant() {
           </motion.div>
         )}
 
+        {/* Document Preview */}
+        {documentPreview && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex gap-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-700"
+          >
+            <div className="relative w-24 h-24 flex-shrink-0">
+              <img
+                src={documentPreview}
+                alt="Document Preview"
+                className="w-full h-full object-cover rounded-lg"
+              />
+              <button
+                onClick={removeDocument}
+                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-1">
+                  📄 Medical Document Selected
+                </p>
+                <p className="text-sm text-slate-700 dark:text-slate-300">
+                  {selectedDocument?.name}
+                </p>
+              </div>
+              <button
+                onClick={handleSendDocument}
+                disabled={!session || isTyping || apiLoading}
+                className="self-start px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs rounded-lg font-medium transition-colors"
+              >
+                Analyze Document
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Input Box */}
         <div className="flex gap-2 items-end">
           <div className="flex-1 flex gap-2 items-end">
@@ -851,11 +951,30 @@ export default function AIAssistant() {
             />
             <button
               onClick={() => imageInputRef.current?.click()}
-              disabled={!session || isTyping || apiLoading || selectedImage !== null}
+              disabled={!session || isTyping || apiLoading || selectedImage !== null || selectedDocument !== null}
               title="Upload Image"
               className="px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors flex items-center justify-center"
             >
               <span className="text-xl">+</span>
+            </button>
+
+            {/* Upload Document Button */}
+            <input
+              ref={documentInputRef}
+              key={documentInputKey}
+              type="file"
+              accept="image/*"
+              onChange={handleDocumentSelect}
+              className="hidden"
+            />
+            <button
+              onClick={() => documentInputRef.current?.click()}
+              disabled={!session || isTyping || apiLoading || selectedImage !== null || selectedDocument !== null}
+              title="Upload Medical Document"
+              className="px-4 py-3 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 dark:text-blue-400 rounded-xl font-medium transition-colors flex items-center justify-center gap-1.5 text-sm"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">Document</span>
             </button>
 
             {/* Text Input */}

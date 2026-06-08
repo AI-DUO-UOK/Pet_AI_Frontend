@@ -29,6 +29,12 @@ interface AnalysisResponse {
   explanation: string;
 }
 
+interface DocumentAnalysisResponse {
+  session_id: string;
+  extracted_data: any;
+  explanation: string;
+}
+
 export const useChatbotAPI = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -237,6 +243,42 @@ export const useChatbotAPI = () => {
     []
   );
 
+  const uploadDocument = useCallback(
+    async (
+      sessionId: string,
+      file: File
+    ): Promise<DocumentAnalysisResponse | null> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        formData.append('file', file);
+
+        const response = await fetch(`${API_BASE_URL}/api/chat/upload-document`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload document: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to upload document';
+        setError(errorMsg);
+        console.error('Error uploading document:', err);
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
   const endSession = useCallback(async (sessionId: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
@@ -271,6 +313,7 @@ export const useChatbotAPI = () => {
     sendMessage,
     sendMessageStream,
     uploadImage,
+    uploadDocument,
     endSession,
   };
 };
