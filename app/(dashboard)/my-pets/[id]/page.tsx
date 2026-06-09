@@ -25,7 +25,8 @@ interface Appointment {
   date: string;
   time: string;
   type: string;
-  status: 'upcoming' | 'completed';
+  // status may come from backend (scheduled/completed/cancelled/in_progress) or be derived
+  status: string;
   address: string;
   notes?: string;
   reviewed?: boolean;
@@ -227,8 +228,20 @@ export default function PetProfile() {
       ? 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=400&fit=crop'
       : 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=400&fit=crop');
 
-  const appointments = MOCK_APPOINTMENTS[petId as keyof typeof MOCK_APPOINTMENTS] || [];
-  const medicalHistory = MOCK_MEDICAL_HISTORY[petId as keyof typeof MOCK_MEDICAL_HISTORY] || [];
+  const [appointments, setAppointments] = useState<any[]>(
+    MOCK_APPOINTMENTS[petId as keyof typeof MOCK_APPOINTMENTS] || []
+  );
+
+  const [medicalHistory, setMedicalHistory] = useState<any[]>(
+    MOCK_MEDICAL_HISTORY[petId as keyof typeof MOCK_MEDICAL_HISTORY] || []
+  );
+
+  const formatDateShort = (d?: string) => {
+    if (!d) return '';
+    const parsed = new Date(d);
+    if (Number.isNaN(parsed.getTime())) return d;
+    return parsed.toLocaleDateString();
+  };
 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -236,6 +249,157 @@ export default function PetProfile() {
     rating: 5,
     treatment: '',
     comment: '',
+  });
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  const getStatusMeta = (status?: string) => {
+    const normalized = (status || '').toLowerCase();
+    if (normalized === 'cancelled') {
+      return { label: 'Cancelled', className: 'text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400' };
+    }
+    if (normalized === 'in_progress') {
+      return { label: 'In Progress', className: 'text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400' };
+    }
+    if (normalized === 'scheduled' || normalized === 'upcoming') {
+      return { label: 'Scheduled', className: 'text-blue-700 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400' };
+    }
+    return { label: 'Completed', className: 'text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-400' };
+  };
+
+  const canReviewAppointment = (appointment: Appointment) => {
+    const status = (appointment.status || '').toLowerCase();
+    return status === 'completed' && !appointment.reviewed;
+  };
+
+  const getAppointmentDate = (appointment: any) => {
+    const rawDate = appointment.appointment_date || appointment.date || appointment.created_at || '';
+    const rawTime = appointment.appointment_time || appointment.time || '';
+    const combined = rawTime ? `${rawDate} ${rawTime}` : rawDate;
+    const parsed = new Date(combined);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const normalizeAppointment = (appointment: any, clinicNameMap: Record<string, string>) => {
+    const appointmentDate = getAppointmentDate(appointment);
+    const clinicId = appointment.clinic_id || '';
+    const clinicName =
+      appointment.clinic_name ||
+      clinicNameMap[clinicId] ||
+      appointment.clinic ||
+      clinicId ||
+      'Clinic';
+
+    const rawStatus = (appointment.status || '').toLowerCase();
+    let statusDisplay = 'scheduled';
+    if (rawStatus === 'completed') {
+      statusDisplay = 'completed';
+    } else if (rawStatus === 'cancelled') {
+      statusDisplay = 'cancelled';
+    } else if (rawStatus === 'in_progress') {
+      statusDisplay = 'in_progress';
+    } else if (appointmentDate && appointmentDate <= new Date()) {
+      statusDisplay = 'completed';
+    } else {
+      statusDisplay = 'upcoming';
+    }
+
+    let doctorName = appointment.doctor_name || appointment.doctor || '';
+    if (!doctorName) {
+      doctorName = 'Dr. Sarah Jenkins';
+    }
+
+    return {
+      id: String(appointment.id),
+      clinic: clinicName,
+      doctor: doctorName,
+      date: appointment.appointment_date || appointment.date || '',
+      time: appointment.appointment_time || appointment.time || '',
+      type: appointment.reason || appointment.type || 'Appointment',
+      status: statusDisplay,
+      address: appointment.address || appointment.location || '',
+      notes: appointment.notes || '',
+      reviewed: appointment.reviewed || false,
+      review: appointment.review,
+    } as Appointment;
+  };
+
+  useEffect(() => {
+    // After pet details load, fetch real appointments and medical records from backend
+    const fetchRemote = async () => {
+      try {
+        const clinicNameMap: Record<string, string> = {};
+
+        try {
+          const clinicsRes = await fetch('http://localhost:8000/api/clinics');
+          if (clinicsRes.ok) {
+            const clinicsJson = await clinicsRes.json();
+            const clinics = clinicsJson.clinics || [];
+            for (const clinic of clinics) {
+              clinicNameMap[String(clinic.id)] = clinic.clinic_name || clinic.name || clinic.business_name || 'Clinic';
+            }
+          }
+        } catch (e) {
+          // ignore clinic lookup failures and fall back to ids
+        }
+
+        try {
+          const apptRes = await fetch(
+            `http://localhost:8000/api/appointments/pet?pet_id=${encodeURIComponent(petId)}`
+          );
+          if (apptRes.ok) {
+            const aj = await apptRes.json();
+            const all = aj.appointments || [];
+            if (all.length) {
+              setAppointments(all.map((a: any) => normalizeAppointment(a, clinicNameMap)));
+            }
+          }
+        } catch (e) {
+          // ignore and keep fallback mocks
+        }
+
+        // Fetch medical records (broad medical or vaccine records)
+        try {
+          const medRes = await fetch(
+            `http://localhost:8000/api/pet/medical-records?pet_id=${encodeURIComponent(petId)}`
+          );
+          if (medRes.ok) {
+            const mj = await medRes.json();
+            // API returns { success, records }
+            const recs = mj.records || mj.records || mj.data || [];
+            if (recs && recs.length) setMedicalHistory(recs);
+          } else {
+            // fallback to vaccine records endpoint
+            const vacRes = await fetch(
+              `http://localhost:8000/api/vaccine-records?pet_id=${encodeURIComponent(petId)}`
+            );
+            if (vacRes.ok) {
+              const vj = await vacRes.json();
+              const recs = vj.records || vj.records || vj.data || [];
+              if (recs && recs.length) setMedicalHistory(recs);
+            }
+          }
+        } catch (e) {
+          // ignore and keep fallback
+        }
+      } catch (e) {
+        // overall ignore
+      }
+    };
+
+    if (petDetails) fetchRemote();
+  }, [petDetails, petId]);
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  const upcomingAppointments = appointments.filter((a) => {
+    const d = getAppointmentDate(a);
+    const status = (a.status || '').toLowerCase();
+    return d && d > today && status !== 'cancelled' && status !== 'completed';
+  });
+  const pastAppointments = appointments.filter((a) => {
+    const d = getAppointmentDate(a);
+    const status = (a.status || '').toLowerCase();
+    return d && (d <= today || status === 'completed' || status === 'cancelled');
   });
 
   if (isLoading) {
@@ -253,16 +417,43 @@ export default function PetProfile() {
       </div>
     );
   }
-
-  const upcomingAppointments = appointments.filter((a) => a.status === 'upcoming');
-  const pastAppointments = appointments.filter((a) => a.status === 'completed');
-
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would save the review to your backend
-    console.log('Review submitted:', reviewForm);
-    setShowReviewModal(false);
-    setReviewForm({ rating: 5, treatment: '', comment: '' });
+    if (!selectedAppointment) return;
+
+    try {
+      setIsSubmittingReview(true);
+      const response = await fetch('http://localhost:8000/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointment_id: selectedAppointment.id,
+          rating: reviewForm.rating,
+          treatment: reviewForm.treatment,
+          comment: reviewForm.comment,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.detail || data.error || 'Failed to submit review');
+      }
+
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === selectedAppointment.id
+            ? { ...appointment, reviewed: true, review: data.review }
+            : appointment
+        )
+      );
+      setShowReviewModal(false);
+      setSelectedAppointment(null);
+      setReviewForm({ rating: 5, treatment: '', comment: '' });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to submit review');
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   return (
@@ -379,16 +570,19 @@ export default function PetProfile() {
 
                 <div className="flex-1">
                   <h3 className="font-semibold text-slate-900 dark:text-white">
-                    {appointment.type}
+                    {appointment.type || appointment.reason}
                   </h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                    <strong>{appointment.clinic}</strong> • Dr. {appointment.doctor.split(' ')[1]}
+                    <strong>{appointment.clinic || appointment.clinic_name || appointment.clinic_id || 'Clinic'}</strong>
+                    {appointment.doctor || appointment.doctor_name ? (
+                      <> • Dr. {(appointment.doctor || appointment.doctor_name).split(' ').slice(-1).join(' ')}</>
+                    ) : null}
                   </p>
                   <p className="flex items-center gap-1 mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    <Calendar className="w-4 h-4" /> {appointment.date} at {appointment.time}
+                    <Calendar className="w-4 h-4" /> {formatDateShort(appointment.appointment_date || appointment.date)} at {appointment.appointment_time || appointment.time || ''}
                   </p>
                   <p className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400">
-                    <MapPin className="w-4 h-4" /> {appointment.address}
+                    <MapPin className="w-4 h-4" /> {appointment.address || appointment.location || ''}
                   </p>
                 </div>
               </motion.div>
@@ -424,17 +618,17 @@ export default function PetProfile() {
                       <h3 className="font-semibold text-slate-900 dark:text-white">
                         {appointment.type}
                       </h3>
-                      <span className="px-2 py-1 text-xs text-green-700 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-400">
-                        Completed
+                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusMeta(appointment.status).className}`}>
+                        {getStatusMeta(appointment.status).label}
                       </span>
                     </div>
 
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                      <strong>{appointment.clinic}</strong> • {appointment.doctor}
+                      <strong>{appointment.clinic || appointment.clinic_name || appointment.clinic_id || 'Clinic'}</strong> • {appointment.doctor || appointment.doctor_name || ''}
                     </p>
 
                     <p className="flex items-center gap-1 mt-2 text-sm text-slate-500 dark:text-slate-400">
-                      <Calendar className="w-4 h-4" /> {appointment.date} at {appointment.time}
+                      <Calendar className="w-4 h-4" /> {formatDateShort(appointment.appointment_date || appointment.date)} at {appointment.appointment_time || appointment.time || ''}
                     </p>
 
                     {appointment.notes && (
@@ -472,7 +666,7 @@ export default function PetProfile() {
                     )}
                   </div>
 
-                  {!appointment.reviewed && (
+                  {canReviewAppointment(appointment) && (
                     <button
                       onClick={() => {
                         setSelectedAppointment(appointment);
@@ -530,12 +724,12 @@ export default function PetProfile() {
                       {record.clinic}
                     </p>
                     <p className="flex items-center gap-1 mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      <Calendar className="w-3.5 h-3.5" /> {record.date}
+                      <Calendar className="w-3.5 h-3.5" /> {formatDateShort(record.date || record.recorded_at || record.created_at || record.date_performed)}
                     </p>
                   </div>
 
                   <span className="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-400">
-                    {record.status}
+                    {record.status || (record.completed ? 'Completed' : 'Recorded')}
                   </span>
                 </div>
               </motion.div>
@@ -663,9 +857,10 @@ export default function PetProfile() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    disabled={isSubmittingReview}
+                    className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                   >
-                    <Send className="w-4 h-4" /> Submit Review
+                    <Send className="w-4 h-4" /> {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
                   </button>
                 </div>
               </form>

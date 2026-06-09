@@ -12,6 +12,9 @@ type ClinicListItem = {
   address?: string | null;
   doctors?: string[];
   operating_hours?: string | null;
+  city?: string | null;
+  rating?: number;
+  reviews?: number;
 };
 
 const FALLBACK_CARD_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=400&h=400&fit=crop';
@@ -132,26 +135,30 @@ export default function FindVets() {
                     <Star
                       key={i}
                       className={`w-4 h-4 ${
-                        i < 4
+                        i < Math.round(clinic.rating || 0)
                           ? 'fill-amber-400 text-amber-400'
                           : 'text-slate-300 dark:text-slate-600'
                       }`}
                     />
                   ))}
                 </div>
-                <span className="text-sm font-medium text-slate-900 dark:text-white">4.8</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">(—)</span>
+                <span className="text-sm font-medium text-slate-900 dark:text-white">
+                  {clinic.rating ? clinic.rating.toFixed(1) : '0.0'}
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  ({clinic.reviews || 0})
+                </span>
               </div>
 
               {/* Clinic Info */}
               <div className="mt-4 space-y-2">
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                   <MapPinIcon className="w-4 h-4" />
-                  {clinic.distance}
+                  {clinic.city || 'Local'}
                 </div>
 
                 <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  {clinic.operatingHours}
+                  Hours: {clinic.operating_hours || 'Not provided'}
                 </div>
               </div>
 

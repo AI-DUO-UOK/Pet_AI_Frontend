@@ -51,21 +51,31 @@ interface Message {
 interface SessionData {
   session_id: string;
   animal: 'dog' | 'cat';
+  pet_name?: string;
   disease_detected?: string | null;
 }
 
 interface PetProfile {
   id: string;
   name: string;
-  type: 'Dog' | 'Cat';
-  breed: string;
-  age: string;
-  imageUrl: string;
+  type: string;
+  breed?: string;
+  date_of_birth?: string;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  gender?: string | null;
+  blood_type?: string | null;
+  allergies?: string | null;
+  medical_conditions?: string | null;
+  notes?: string | null;
+  microchip_id?: string | null;
+  profile_image_url?: string | null;
+  age?: string;
 }
 
-const FALLBACK_IMAGE_BY_TYPE: Record<'Dog' | 'Cat', string> = {
-  Dog: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=400&fit=crop',
-  Cat: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=400&fit=crop',
+const FALLBACK_IMAGE_BY_TYPE: Record<string, string> = {
+  dog: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=400&fit=crop',
+  cat: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=500&h=400&fit=crop',
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -108,7 +118,6 @@ const MarkdownComponents = {
   blockquote: ({ ...props }: any) => (
     <blockquote className="border-l-4 border-primary-500 pl-4 italic my-3 text-slate-700 dark:text-slate-300" {...props} />
   ),
-  // Table styling - Professional markdown tables
   table: ({ ...props }: any) => (
     <div className="my-4 overflow-x-auto rounded-lg border border-slate-300 dark:border-slate-700">
       <table className="w-full border-collapse bg-white dark:bg-slate-900" {...props} />
@@ -121,8 +130,6 @@ const MarkdownComponents = {
     <tbody className="divide-y divide-slate-200 dark:divide-slate-700" {...props} />
   ),
   tr: ({ children, ...props }: any) => {
-    // Add alternating row colors for tbody rows
-    const isHeaderRow = false;
     return (
       <tr 
         className="divide-x divide-slate-200 dark:divide-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" 
@@ -155,6 +162,9 @@ export default function AIAssistant() {
   const [isTyping, setIsTyping] = useState(false);
   const [session, setSession] = useState<SessionData | null>(null);
   const [showPetSelector, setShowPetSelector] = useState(true);
+  const [pets, setPets] = useState<PetProfile[]>([]);
+  const [isLoadingPets, setIsLoadingPets] = useState(false);
+  const [petsError, setPetsError] = useState<string | null>(null);
   const [imageInputKey, setImageInputKey] = useState(0);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -168,10 +178,135 @@ export default function AIAssistant() {
     loading: apiLoading 
   } = useChatbotAPI();
 
-  // Pet selection modal state
-  const [pets, setPets] = useState<PetProfile[]>([]);
-  const [isLoadingPets, setIsLoadingPets] = useState(false);
-  const [petsError, setPetsError] = useState<string | null>(null);
+  // Document upload state
+  const [selectedDocument, setSelectedDocument] = useState<File | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [documentInputKey, setDocumentInputKey] = useState(0);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+
+  const getCurrentUserId = () => {
+    const userId = user?.id || localStorage.getItem('user_id') || '';
+    return UUID_PATTERN.test(userId) ? userId : '';
+  };
+
+  const calculateAge = (dateOfBirth?: string) => {
+    if (!dateOfBirth) return '';
+    const birthDate = new Date(dateOfBirth);
+    if (Number.isNaN(birthDate.getTime())) return '';
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age > 0 ? `${age} years` : 'Less than 1 year';
+  };
+
+  const getPetType = (pet: PetProfile): 'dog' | 'cat' =>
+    pet.type?.toLowerCase() === 'cat' ? 'cat' : 'dog';
+
+  const getPetImageUrl = (pet: PetProfile) => {
+    const type = getPetType(pet);
+    return pet.profile_image_url || FALLBACK_IMAGE_BY_TYPE[type];
+  };
+
+  const getWeightText = (pet: PetProfile) => {
+    if (pet.weight === null || pet.weight === undefined || `${pet.weight}`.trim() === '') {
+      return '';
+    }
+    return `${pet.weight} ${pet.weight_unit || ''}`.trim();
+  };
+
+  const formatDateOfBirth = (dateOfBirth?: string) => {
+    if (!dateOfBirth) return '';
+    const parsed = new Date(dateOfBirth);
+    if (Number.isNaN(parsed.getTime())) return dateOfBirth;
+    return parsed.toLocaleDateString();
+  };
+
+  // If pet_id is in URL, auto-start session with that pet
+  useEffect(() => {
+    if (petIdFromUrl && showPetSelector) {
+      autoStartSessionFromPetId(petIdFromUrl);
+    }
+  }, [petIdFromUrl, showPetSelector]);
+
+  const autoStartSessionFromPetId = async (petId: string) => {
+    try {
+      setIsLoadingPets(true);
+      const response = await fetch(`http://localhost:8000/api/pets/${petId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load pet');
+      }
+      const data = await response.json();
+      const pet = data.pet;
+      if (!pet) {
+        throw new Error('Pet not found');
+      }
+
+      const petProfile: PetProfile = {
+        id: pet.id,
+        name: pet.name,
+        type: pet.pet_type || pet.type || 'dog',
+        breed: pet.breed || '',
+        date_of_birth: pet.date_of_birth,
+        weight: pet.weight,
+        weight_unit: pet.weight_unit,
+        gender: pet.gender,
+        blood_type: pet.blood_type,
+        allergies: pet.allergies,
+        medical_conditions: pet.medical_conditions,
+        notes: pet.notes,
+        profile_image_url: pet.profile_image_url,
+        age: calculateAge(pet.date_of_birth),
+      };
+
+      await handleStartSession(petProfile);
+    } catch (err) {
+      console.error('Error auto-starting session:', err);
+      setPetsError('Failed to load pet. Please select from the list.');
+      fetchPets();
+    } finally {
+      setIsLoadingPets(false);
+    }
+  };
+
+  // Fetch user's pets when pet selector is shown (and no pet_id in URL)
+  useEffect(() => {
+    if (showPetSelector && !petIdFromUrl) {
+      fetchPets();
+    }
+  }, [showPetSelector, petIdFromUrl, user?.id]);
+
+  const fetchPets = async () => {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      setPetsError('Please log in again to load your pets.');
+      setIsLoadingPets(false);
+      return;
+    }
+
+    try {
+      setIsLoadingPets(true);
+      setPetsError(null);
+      const response = await fetch(
+        `http://localhost:8000/api/pets?user_id=${encodeURIComponent(userId)}`
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch pets (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      const records: PetProfile[] = data.pets || [];
+      setPets(records.map((pet) => ({ ...pet, age: calculateAge(pet.date_of_birth) })));
+    } catch (error) {
+      console.error('Error fetching pets:', error);
+      setPetsError(error instanceof Error ? error.message : 'Failed to load pets');
+    } finally {
+      setIsLoadingPets(false);
+    }
+  };
 
   // Inject cursor animation styles
   useEffect(() => {
@@ -202,125 +337,33 @@ export default function AIAssistant() {
     scrollToBottom();
   }, [messages, isTyping, streamingMessageId]);
 
-  const getCurrentUserId = () => {
-    const userId = user?.id || localStorage.getItem('user_id') || '';
-    return UUID_PATTERN.test(userId) ? userId : '';
-  };
-
-  const calculateAge = (dateOfBirth: string) => {
-    if (!dateOfBirth) return '';
-    const birthDate = new Date(dateOfBirth);
-    if (Number.isNaN(birthDate.getTime())) return '';
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age > 0 ? `${age} years` : 'Less than 1 year';
-  };
-
-  // If pet_id is in URL, auto-start session with that pet
-  useEffect(() => {
-    if (petIdFromUrl && showPetSelector) {
-      autoStartSessionFromPetId(petIdFromUrl);
-    }
-  }, [petIdFromUrl, showPetSelector]);
-
-  const autoStartSessionFromPetId = async (petId: string) => {
-    try {
-      setIsLoadingPets(true);
-      // Fetch pet details from API
-      const response = await fetch(`http://localhost:8000/api/pets/${petId}`);
-      if (!response.ok) {
-        throw new Error('Failed to load pet');
-      }
-      const data = await response.json();
-      const pet = data.pet;
-      if (!pet) {
-        throw new Error('Pet not found');
-      }
-
-      const normalizedType = pet.pet_type?.toLowerCase() === 'cat' ? 'Cat' as const : 'Dog' as const;
-      const petProfile: PetProfile = {
-        id: pet.id,
-        name: pet.name,
-        type: normalizedType,
-        breed: pet.breed || '',
-        age: calculateAge(pet.date_of_birth),
-        imageUrl: pet.profile_image_url || FALLBACK_IMAGE_BY_TYPE[normalizedType],
-      };
-
-      await handleStartSession(petProfile);
-    } catch (err) {
-      console.error('Error auto-starting session:', err);
-      setPetsError('Failed to load pet. Please select from the list.');
-      // Show the pet selector as fallback
-      fetchUserPets();
-    } finally {
-      setIsLoadingPets(false);
-    }
-  };
-
-  // Fetch user's pets when pet selector is shown (and no pet_id in URL)
-  useEffect(() => {
-    if (showPetSelector && !petIdFromUrl) {
-      fetchUserPets();
-    }
-  }, [showPetSelector, petIdFromUrl, user?.id]);
-
-  const fetchUserPets = async () => {
-    const userId = getCurrentUserId();
-    if (!userId) {
-      setPetsError('Please log in again to load your pets.');
-      setIsLoadingPets(false);
-      return;
-    }
-
-    try {
-      setIsLoadingPets(true);
-      setPetsError(null);
-      const response = await fetch(
-        `http://localhost:8000/api/pets?user_id=${encodeURIComponent(userId)}`
-      );
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch pets (${response.status}): ${errorText}`);
-      }
-
-      const data = await response.json();
-      const records: any[] = data.pets || [];
-      const mappedPets: PetProfile[] = records.map((pet: any) => {
-        const normalizedType = pet.pet_type?.toLowerCase() === 'cat' ? 'Cat' as const : 'Dog' as const;
-        return {
-          id: pet.id,
-          name: pet.name,
-          type: normalizedType,
-          breed: pet.breed || '',
-          age: calculateAge(pet.date_of_birth),
-          imageUrl: pet.profile_image_url || FALLBACK_IMAGE_BY_TYPE[normalizedType],
-        };
-      });
-      setPets(mappedPets);
-    } catch (error) {
-      console.error('Error fetching pets:', error);
-      setPetsError(error instanceof Error ? error.message : 'Failed to load pets');
-    } finally {
-      setIsLoadingPets(false);
-    }
-  };
-
   const handleStartSession = async (pet: PetProfile) => {
+    const animal = getPetType(pet);
     setSelectedPet(pet);
     setIsTyping(true);
-    const animal = pet.type.toLowerCase() as 'dog' | 'cat';
-    const response = await startConversation(animal, pet.id);
+    const response = await startConversation(animal, pet.id, {
+      id: pet.id,
+      name: pet.name,
+      type: animal,
+      breed: pet.breed,
+      age: pet.age,
+      date_of_birth: pet.date_of_birth,
+      weight: pet.weight,
+      weight_unit: pet.weight_unit,
+      gender: pet.gender,
+      blood_type: pet.blood_type,
+      allergies: pet.allergies,
+      medical_conditions: pet.medical_conditions,
+      notes: pet.notes,
+      microchip_id: pet.microchip_id,
+    });
     setIsTyping(false);
 
     if (response) {
       setSession({
         session_id: response.session_id,
         animal,
+        pet_name: pet.name,
       });
       setShowPetSelector(false);
       setMessages([
@@ -426,12 +469,6 @@ export default function AIAssistant() {
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-
-  // Document upload state
-  const [selectedDocument, setSelectedDocument] = useState<File | null>(null);
-  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
-  const [documentInputKey, setDocumentInputKey] = useState(0);
-  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
@@ -593,77 +630,122 @@ export default function AIAssistant() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-lg w-full mx-4 shadow-xl"
+            className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-xl max-h-[85vh] overflow-y-auto"
           >
-            <div className="text-center space-y-6">
+            <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                  Select a Pet
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">
+                  Which pet needs help today?
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400">
-                  Choose which pet you need help with
+                <p className="text-slate-500 dark:text-slate-400 text-center">
+                  Select one of your pets to start a personalized chat
                 </p>
               </div>
 
-              {/* Loading State */}
-              {isLoadingPets && (
-                <div className="py-8 text-center text-slate-500 dark:text-slate-400">
+              {isLoadingPets ? (
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400">
                   Loading your pets...
                 </div>
-              )}
-
-              {/* Error State */}
-              {petsError && !isLoadingPets && (
-                <div className="p-4 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-800 text-red-700 dark:text-red-300">
+              ) : petsError ? (
+                <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-700 dark:text-red-300">
                   {petsError}
                 </div>
-              )}
-
-              {/* No Pets State */}
-              {!isLoadingPets && !petsError && pets.length === 0 && (
-                <div className="p-8 text-center border border-dashed rounded-2xl border-slate-300 dark:border-slate-700">
-                  <p className="text-slate-500 dark:text-slate-400 mb-4">
-                    No pets found. Add a pet first to use the AI assistant.
-                  </p>
-                  <a
-                    href="/my-pets"
-                    className="inline-flex items-center gap-2 px-4 py-2 font-medium text-white transition-colors rounded-lg bg-primary-600 hover:bg-primary-700"
-                  >
-                    Go to My Pets
-                  </a>
+              ) : pets.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-6 text-center text-slate-600 dark:text-slate-300">
+                  No pets found. Add a pet profile first to use the AI assistant.
                 </div>
-              )}
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pets.map((pet) => {
+                    const animal = getPetType(pet);
+                    const weightText = getWeightText(pet);
+                    const dateOfBirth = formatDateOfBirth(pet.date_of_birth);
 
-              {/* Pet Cards Grid */}
-              {!isLoadingPets && !petsError && pets.length > 0 && (
-                <div className="grid grid-cols-2 gap-4">
-                  {pets.map((pet) => (
-                    <button
-                      key={pet.id}
-                      onClick={() => handleStartSession(pet)}
-                      disabled={isTyping || apiLoading}
-                      className="p-4 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-600 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-left group"
-                    >
-                      <div className="relative w-full aspect-square mb-3 overflow-hidden rounded-lg">
+                    return (
+                      <button
+                        key={pet.id}
+                        onClick={() => handleStartSession(pet)}
+                        disabled={isTyping || apiLoading}
+                        className="text-left overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
                         <img
-                          src={pet.imageUrl}
+                          src={getPetImageUrl(pet)}
                           alt={pet.name}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          className="h-40 w-full object-cover"
                         />
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-slate-900 dark:text-white mb-1">
-                          {pet.name}
+                        <div className="space-y-3 p-4">
+                          <div>
+                            <div className="flex items-center justify-between gap-3">
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                {pet.name}
+                              </h3>
+                              <span className="rounded-full bg-primary-100 dark:bg-primary-900/30 px-2 py-1 text-xs font-semibold text-primary-700 dark:text-primary-300">
+                                {animal === 'dog' ? 'Dog' : 'Cat'}
+                              </span>
+                            </div>
+                            {pet.breed && (
+                              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                {pet.breed}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            {pet.age && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Age
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {pet.age}
+                                </p>
+                              </div>
+                            )}
+                            {weightText && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Weight
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {weightText}
+                                </p>
+                              </div>
+                            )}
+                            {pet.blood_type && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Blood
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {pet.blood_type}
+                                </p>
+                              </div>
+                            )}
+                            {dateOfBirth && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  DOB
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {dateOfBirth}
+                                </p>
+                              </div>
+                            )}
+                            {pet.gender && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                  Gender
+                                </p>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  {pet.gender}
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-sm text-slate-500 dark:text-slate-400">
-                          {pet.type === 'Dog' ? '🐕' : '🐱'} {pet.breed}
-                        </div>
-                        <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                          {pet.age}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

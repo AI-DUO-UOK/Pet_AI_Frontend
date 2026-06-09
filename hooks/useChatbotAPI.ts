@@ -22,6 +22,23 @@ interface StartSessionResponse {
   message: string;
 }
 
+interface PetProfilePayload {
+  id: string;
+  name: string;
+  type: string;
+  breed?: string;
+  age?: string;
+  date_of_birth?: string;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  gender?: string | null;
+  blood_type?: string | null;
+  allergies?: string | null;
+  medical_conditions?: string | null;
+  notes?: string | null;
+  microchip_id?: string | null;
+}
+
 interface AnalysisResponse {
   session_id: string;
   disease_class: string;
@@ -40,7 +57,11 @@ export const useChatbotAPI = () => {
   const [error, setError] = useState<string | null>(null);
 
   const startConversation = useCallback(
-    async (animal: 'dog' | 'cat', pet_id?: string): Promise<StartSessionResponse | null> => {
+    async (
+      animal: 'dog' | 'cat',
+      pet_id?: string,
+      petProfile?: PetProfilePayload
+    ): Promise<StartSessionResponse | null> => {
       setLoading(true);
       setError(null);
 
@@ -48,6 +69,9 @@ export const useChatbotAPI = () => {
         const body: any = { animal };
         if (pet_id) {
           body.pet_id = pet_id;
+        }
+        if (petProfile) {
+          body.pet_profile = petProfile;
         }
 
         const response = await fetch(`${API_BASE_URL}/api/chat/start`, {
