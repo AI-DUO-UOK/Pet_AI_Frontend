@@ -10,6 +10,7 @@ interface User {
   email: string;
   avatar?: string;
   role?: 'owner' | 'clinic' | 'admin';
+  permissions?: string[];
   clinicName?: string;
   verificationStatus?: 'pending' | 'approved' | 'rejected';
   submittedDate?: string;

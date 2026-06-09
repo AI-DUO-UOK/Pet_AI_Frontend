@@ -107,7 +107,8 @@ export default function ClinicProfilePage() {
   const [services, setServices] = useState<string[]>(DEFAULT_SERVICES);
   const [facilities, setFacilities] = useState<string[]>(DEFAULT_FACILITIES);
   const [doctors, setDoctors] = useState<string[]>(DEFAULT_DOCTORS);
-  const [reviews] = useState<ClinicReview[]>(DEFAULT_REVIEWS);
+  const [reviews, setReviews] = useState<ClinicReview[]>([]);
+  const [reviewStats, setReviewStats] = useState({ count: 0, averageRating: 0 });
   const [newService, setNewService] = useState('');
   const [newFacility, setNewFacility] = useState('');
   const [newDoctor, setNewDoctor] = useState('');
@@ -153,6 +154,21 @@ export default function ClinicProfilePage() {
         const data = await response.json();
         const clinic: ClinicProfile = data.clinic;
         setProfile(clinic);
+        try {
+          const reviewsResponse = await fetch(`http://localhost:8000/api/reviews/clinic?clinic_id=${encodeURIComponent(clinic.id)}`);
+          if (reviewsResponse.ok) {
+            const reviewsJson = await reviewsResponse.json();
+            const realReviews = reviewsJson.reviews || [];
+            setReviews(realReviews);
+            setReviewStats({ count: reviewsJson.count || realReviews.length, averageRating: reviewsJson.average_rating || 0 });
+          } else {
+            setReviews([]);
+            setReviewStats({ count: 0, averageRating: 0 });
+          }
+        } catch {
+          setReviews([]);
+          setReviewStats({ count: 0, averageRating: 0 });
+        }
         setFormState({
           clinic_name: clinic.clinic_name || '',
           phone: clinic.phone || '',
@@ -562,7 +578,7 @@ export default function ClinicProfilePage() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Client Reviews</h2>
         <div className="space-y-4">
-          {reviews.map((review) => (
+          {reviews.length > 0 ? reviews.map((review) => (
             <div key={review.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-start justify-between mb-2">
                 <div>
@@ -575,10 +591,17 @@ export default function ClinicProfilePage() {
                   ))}
                 </div>
               </div>
-              <p className="text-sm text-slate-700 dark:text-slate-300">{review.comment}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{review.date}</p>
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                Treatment: <span className="font-normal text-slate-600 dark:text-slate-400">{review.treatment || 'General care'}</span>
+              </p>
+              {review.comment && (
+                <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-300">"{review.comment}"</p>
+              )}
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2.5">{review.date}</p>
             </div>
-          ))}
+          )) : (
+            <p className="py-6 text-sm text-center text-slate-500 dark:text-slate-400">No client reviews yet. Reviews will appear here after pet owners review completed channels.</p>
+          )}
         </div>
         </div>
       </div>

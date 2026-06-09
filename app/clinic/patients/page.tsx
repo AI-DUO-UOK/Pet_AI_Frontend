@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface Patient {
   id: string;
+  petId: string;
   petName: string;
   petType: string;
   breed: string;
@@ -24,52 +25,62 @@ interface Patient {
   diagnosis: string;
   visitType: 'Routine' | 'Emergency' | 'Walk-in';
   date: string;
+  appointmentDate: string;
+  appointmentTime?: string;
   status: 'Completed' | 'In Progress' | 'Scheduled' | 'Cancelled';
   isNewcomer?: boolean;
   medicalHistory?: string[];
+  lastVisit?: string;
 }
 
-const INITIAL_PATIENTS: Patient[] = [
-  {
-    id: '1',
-    petName: 'Bella',
-    petType: 'Dog',
-    breed: 'Labrador',
-    petOwner: 'Sarah Jenkins',
-    diagnosis: 'Annual Checkup & Vaccines',
-    visitType: 'Routine',
-    date: 'Today, 10:00 AM',
-    status: 'Completed',
-    isNewcomer: false,
-    medicalHistory: ['Vaccination on 2024-02-15', 'Checkup on 2024-01-10'],
-  },
-  {
-    id: '2',
-    petName: 'Oliver',
-    petType: 'Cat',
-    breed: 'Persian',
-    petOwner: 'Mike Thompson',
-    diagnosis: 'Lethargy, loss of appetite',
-    visitType: 'Emergency',
-    date: 'Today, 2:30 PM',
-    status: 'In Progress',
-    isNewcomer: false,
-    medicalHistory: ['Vaccination on 2024-03-01', 'Minor injury treatment on 2024-02-20'],
-  },
-  {
-    id: '3',
-    petName: 'Charlie',
-    petType: 'Dog',
-    breed: 'Golden Retriever',
-    petOwner: 'Emily Davis',
-    diagnosis: 'Post-surgery follow up',
-    visitType: 'Walk-in',
-    date: 'Tomorrow, 9:00 AM',
-    status: 'Scheduled',
-    isNewcomer: true,
-    medicalHistory: ['Surgery on 2024-03-15'],
-  },
-];
+const formatAppointmentDate = (dateStr?: string, timeStr?: string) => {
+  if (!dateStr) return '';
+  const dateParts = dateStr.split('-');
+  if (dateParts.length === 3) {
+    const year = dateParts[0];
+    const month = dateParts[1];
+    const day = dateParts[2];
+    const formattedDate = `${day}/${month}/${year}`;
+    if (timeStr) {
+      const timeParts = timeStr.split(':');
+      if (timeParts.length >= 2) {
+        let hours = parseInt(timeParts[0], 10);
+        const minutes = timeParts[1];
+        let seconds = timeParts[2] ? timeParts[2].split('.')[0] : '00';
+        const ampm = hours >= 12 ? 'pm' : 'am';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // the hour '0' should be '12'
+        return `${formattedDate}, ${hours}:${minutes}:${seconds} ${ampm}`;
+      }
+      return `${formattedDate}, ${timeStr}`;
+    }
+    return formattedDate;
+  }
+  
+  try {
+    const d = new Date(dateStr);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleString();
+    }
+  } catch (e) {}
+  return dateStr;
+};
+
+const isFutureAppointmentDate = (patient: Patient) => {
+  if (!patient.appointmentDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dateParts = patient.appointmentDate.split('-');
+  if (dateParts.length === 3) {
+    const apptDate = new Date(
+      parseInt(dateParts[0], 10),
+      parseInt(dateParts[1], 10) - 1,
+      parseInt(dateParts[2], 10)
+    );
+    return apptDate > today;
+  }
+  return false;
+};
 
 const STATUS_OPTIONS = ['Scheduled', 'In Progress', 'Completed', 'Cancelled'];
 const STATUS_COLORS: Record<string, string> = {
@@ -83,28 +94,78 @@ export default function ClinicPatients() {
   const { user } = useAuth();
   const isPending = user?.verificationStatus === 'pending';
   const [searchTerm, setSearchTerm] = useState('');
-  const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<string | null>(null);
 
-  // Load from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('clinicPatients');
-    if (saved) {
+    let mounted = true;
+    const fetchPatients = async () => {
       try {
-        setPatients(JSON.parse(saved));
-      } catch (e) {
-        // Keep initial patients
-      }
-    }
-  }, []);
+        if (!user) return;
 
-  // Save to localStorage whenever patients change
-  useEffect(() => {
-    localStorage.setItem('clinicPatients', JSON.stringify(patients));
-  }, [patients]);
+        // Get clinic profile for this user to obtain clinic id
+        const clinicRes = await fetch(`http://localhost:8000/api/clinic/profile?user_id=${encodeURIComponent(user.id)}`);
+        if (!clinicRes.ok) return;
+        const clinicJson = await clinicRes.json();
+        const clinic = clinicJson.clinic;
+        if (!clinic || !clinic.id) return;
+
+        const resp = await fetch(`http://localhost:8000/api/clinic/patients?clinic_id=${encodeURIComponent(clinic.id)}`);
+        if (!resp.ok) return;
+        const j = await resp.json();
+        const appts = j.appointments || [];
+
+        // Map appointments to Patient shape
+        const mapped = appts.map((a: any) => {
+          const statusMapDisplay: Record<string, Patient['status']> = {
+            scheduled: 'Scheduled',
+            completed: 'Completed',
+            cancelled: 'Cancelled',
+            in_progress: 'In Progress',
+          };
+
+          const visitType = a.reason && a.reason.toLowerCase().includes('vaccine')
+            ? 'Routine'
+            : a.reason && a.reason.toLowerCase().includes('emergency')
+              ? 'Emergency'
+              : 'Routine';
+
+          const dateStr = formatAppointmentDate(a.appointment_date, a.appointment_time || a.time);
+
+          return {
+            id: a.id,
+            petId: a.pet_id,
+            petName: a.pet_name || a.pet_id,
+            petType: a.pet_type || 'Pet',
+            breed: a.breed || '',
+            petOwner: a.owner_name || a.owner_id,
+            diagnosis: a.reason || a.notes || '',
+            visitType,
+            date: dateStr,
+            appointmentDate: a.appointment_date || '',
+            appointmentTime: a.appointment_time || '',
+            status: statusMapDisplay[(a.status || 'scheduled').toLowerCase()] || 'Scheduled',
+            isNewcomer: false,
+            medicalHistory: [],
+          } as Patient;
+        });
+
+        if (mounted) setPatients(mapped);
+      } catch (e) {
+        // keep empty state on error
+      } finally {
+        if (mounted) setIsLoadingPatients(false);
+      }
+    };
+
+    fetchPatients();
+
+    return () => { mounted = false; };
+  }, [user]);
 
   const displayPatients = isPending
     ? []
@@ -115,12 +176,37 @@ export default function ClinicPatients() {
       );
 
   const updateStatus = (patientId: string, newStatus: string) => {
-    setPatients(
-      patients.map((p) =>
-        p.id === patientId ? { ...p, status: newStatus as any } : p
-      )
-    );
+    // Map display status back to backend token
+    const toBackend: Record<string, string> = {
+      'Scheduled': 'scheduled',
+      'In Progress': 'in_progress',
+      'Completed': 'completed',
+      'Cancelled': 'cancelled',
+    };
+    const backendStatus = toBackend[newStatus] || 'scheduled';
+
+    // Optimistic UI update
+    setPatients(patients.map((p) => (p.id === patientId ? { ...p, status: newStatus as any } : p)));
     setShowStatusDropdown(null);
+
+    // Persist to backend
+    (async () => {
+      try {
+        const form = new FormData();
+        form.append('status', backendStatus);
+        const res = await fetch(`http://localhost:8000/api/appointments/${encodeURIComponent(patientId)}/status`, {
+          method: 'POST',
+          body: form,
+        });
+        if (!res.ok) {
+          // Revert on failure
+          setPatients(patients.map((p) => (p.id === patientId ? { ...p, status: (p.status as any) } : p)));
+        }
+      } catch (e) {
+        // network error — revert
+        setPatients(patients.map((p) => (p.id === patientId ? { ...p, status: (p.status as any) } : p)));
+      }
+    })();
   };
 
   const cancelAppointment = (patientId: string) => {
@@ -137,10 +223,99 @@ export default function ClinicPatients() {
     setOpenMenu(null);
   };
 
-  const viewHistory = (patient: Patient) => {
-    setSelectedPatient(patient);
+  const viewHistory = async (patient: Patient) => {
+    setSelectedPatient({
+      ...patient,
+      lastVisit: 'Loading last visit details...',
+      medicalHistory: ['Loading medical history records...'],
+    });
     setShowHistoryModal(true);
     setOpenMenu(null);
+
+    try {
+      // Fetch appointments for this pet
+      const apptsRes = await fetch(`http://localhost:8000/api/appointments/pet?pet_id=${encodeURIComponent(patient.petId)}`);
+      let pastApptDates: Date[] = [];
+      let historyItems: string[] = [];
+
+      if (apptsRes.ok) {
+        const apptsData = await apptsRes.json();
+        const petAppts = apptsData.appointments || [];
+
+        const completedAppts = petAppts.filter((appt: any) => {
+          const status = (appt.status || '').toLowerCase();
+          return status === 'completed';
+        });
+
+        completedAppts.forEach((appt: any) => {
+          const d = appt.appointment_date ? new Date(`${appt.appointment_date}T${appt.appointment_time || '00:00:00'}`) : null;
+          if (d && !Number.isNaN(d.getTime())) {
+            pastApptDates.push(d);
+            const formatted = formatAppointmentDate(appt.appointment_date, appt.appointment_time);
+            const reason = appt.reason || 'General Checkup';
+            const notes = appt.notes ? ` (Notes: ${appt.notes})` : '';
+            historyItems.push(`${formatted} - Completed Visit for ${reason}${notes}`);
+          }
+        });
+      }
+
+      // Fetch medical records for this pet
+      const medRes = await fetch(`http://localhost:8000/api/pet/medical-records?pet_id=${encodeURIComponent(patient.petId)}`);
+      if (medRes.ok) {
+        const medData = await medRes.json();
+        const records = medData.records || [];
+        records.forEach((rec: any) => {
+          const d = rec.visit_date ? new Date(rec.visit_date) : null;
+          if (d && !Number.isNaN(d.getTime())) {
+            pastApptDates.push(d);
+          }
+          const formatted = rec.visit_date ? formatAppointmentDate(rec.visit_date) : 'Unknown Date';
+          const diagnosis = rec.diagnosis || 'No diagnosis recorded';
+          const treatment = rec.treatment ? `, Treatment: ${rec.treatment}` : '';
+          const notes = rec.notes ? ` (Notes: ${rec.notes})` : '';
+          historyItems.push(`${formatted} - Diagnosis: ${diagnosis}${treatment}${notes}`);
+        });
+      }
+
+      // Determine newcomer and last visit date
+      const today = new Date();
+      const pastVisits = pastApptDates.filter((d) => d < today);
+      
+      let lastVisitStr = 'Newcomer (No previous visits)';
+      let isNewcomer = true;
+
+      if (pastVisits.length > 0) {
+        pastVisits.sort((a, b) => b.getTime() - a.getTime());
+        const lastVisitDate = pastVisits[0];
+        lastVisitStr = formatAppointmentDate(
+          lastVisitDate.toISOString().split('T')[0],
+          lastVisitDate.toTimeString().split(' ')[0]
+        );
+        isNewcomer = false;
+      }
+
+      const newcomerStatus = patient.isNewcomer || isNewcomer;
+
+      setSelectedPatient((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          lastVisit: lastVisitStr,
+          isNewcomer: newcomerStatus,
+          medicalHistory: historyItems.length > 0 ? historyItems : [],
+        };
+      });
+    } catch (err) {
+      console.warn("Failed to fetch pet medical history:", err);
+      setSelectedPatient((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          lastVisit: 'N/A',
+          medicalHistory: ['No medical history records could be loaded.'],
+        };
+      });
+    }
   };
 
   return (
@@ -288,19 +463,27 @@ export default function ClinicPatients() {
                                 exit={{ opacity: 0, y: -10 }}
                                 className="absolute z-10 mt-2 bg-white border rounded-lg shadow-lg top-full dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                               >
-                                {STATUS_OPTIONS.map((status) => (
-                                  <button
-                                    key={status}
-                                    onClick={() => updateStatus(patient.id, status)}
-                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${
-                                      patient.status === status
-                                        ? 'font-semibold text-primary-600 dark:text-primary-400'
-                                        : 'text-slate-700 dark:text-slate-300'
-                                    } first:rounded-t-lg last:rounded-b-lg`}
-                                  >
-                                    {status}
-                                  </button>
-                                ))}
+                                {STATUS_OPTIONS.map((status) => {
+                                  const isFuture = isFutureAppointmentDate(patient);
+                                  const isDisabled = isFuture && (status === 'Completed' || status === 'In Progress');
+                                  return (
+                                    <button
+                                      key={status}
+                                      disabled={isDisabled}
+                                      onClick={() => !isDisabled && updateStatus(patient.id, status)}
+                                      title={isDisabled ? "Cannot set future appointments to Completed or In Progress" : ""}
+                                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                                        isDisabled
+                                          ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-600'
+                                          : patient.status === status
+                                            ? 'font-semibold text-primary-600 dark:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                      } first:rounded-t-lg last:rounded-b-lg`}
+                                    >
+                                      {status}
+                                    </button>
+                                  );
+                                })}
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -364,10 +547,14 @@ export default function ClinicPatients() {
               </table>
             </div>
 
-            {displayPatients.length === 0 && !isPending && (
+            {isLoadingPatients ? (
+              <div className="p-12 text-center">
+                <p className="text-slate-500 dark:text-slate-400">Loading real clinic cases...</p>
+              </div>
+            ) : displayPatients.length === 0 && !isPending && (
               <div className="p-12 text-center">
                 <p className="text-slate-500 dark:text-slate-400">
-                  No patients found. Patients will appear here as they visit your clinic.
+                  No clinic appointments found yet.
                 </p>
               </div>
             )}
@@ -443,7 +630,7 @@ export default function ClinicPatients() {
                       Last Visit
                     </p>
                     <p className="mt-1 font-medium text-slate-900 dark:text-white">
-                      {selectedPatient.date}
+                      {selectedPatient.lastVisit || 'Newcomer (No previous visits)'}
                     </p>
                   </div>
                 </div>
