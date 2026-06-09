@@ -181,7 +181,7 @@ export default function AIAssistant() {
   // Document upload state
   const [selectedDocument, setSelectedDocument] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
-  const [documentInputKey, setDocumentInputKey] = useState(0);
+  const [documentInputKey, setDocumentInputKey] = useState(999);
   const documentInputRef = useRef<HTMLInputElement>(null);
 
   const getCurrentUserId = () => {
