@@ -25,6 +25,7 @@ type Clinic = {
   zip_code?: string;
   country?: string;
   clinic_logo_url?: string | null;
+  license_document_url?: string | null;
   is_verified: boolean;
   is_rejected?: boolean;
   rejection_reason?: string | null;
@@ -132,11 +133,39 @@ function ClinicDetailsModal({
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          <img
-            src={clinic.clinic_logo_url || 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=1200&h=600&fit=crop'}
-            alt={`${clinic.clinic_name} cover`}
-            className="object-cover w-full h-56 rounded-2xl border border-slate-200 dark:border-slate-700"
-          />
+          {/* Verification Document Viewer */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+              License / Registration Document
+            </p>
+            {clinic.license_document_url ? (
+              clinic.license_document_url.toLowerCase().endsWith('.pdf') ? (
+                <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Verification License (PDF)
+                  </span>
+                  <a
+                    href={clinic.license_document_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                  >
+                    Open PDF Document
+                  </a>
+                </div>
+              ) : (
+                <img
+                  src={clinic.license_document_url}
+                  alt={`${clinic.clinic_name} License Document`}
+                  className="object-contain w-full h-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                />
+              )
+            ) : (
+              <div className="flex items-center justify-center h-32 border-2 border-dashed rounded-2xl text-slate-400 border-slate-300 dark:border-slate-700">
+                No verification license document uploaded
+              </div>
+            )}
+          </div>
 
           {/* Clinic Info */}
           <div className="grid gap-6 sm:grid-cols-2">
@@ -152,6 +181,14 @@ function ClinicDetailsModal({
               </p>
               <p className="text-slate-900 dark:text-white">{clinic.phone}</p>
             </div>
+            <div className="sm:col-span-2">
+              <p className="mb-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+                Address
+              </p>
+              <p className="text-slate-900 dark:text-white">
+                {clinic.address} {clinic.city && `, ${clinic.city}`} {clinic.state && `, ${clinic.state}`} {clinic.zip_code && `, ${clinic.zip_code}`} {clinic.country && `, ${clinic.country}`}
+              </p>
+            </div>
             <div>
               <p className="mb-1 text-sm font-medium text-slate-500 dark:text-slate-400">
                 Submitted Date
@@ -165,10 +202,15 @@ function ClinicDetailsModal({
                 Days Pending
               </p>
               <p className="text-slate-900 dark:text-white">
-                {Math.floor(
-                  (Date.now() - new Date(clinic.created_at).getTime()) /
-                    (1000 * 60 * 60 * 24)
-                )}{' '}
+                {(() => {
+                  const created = new Date(clinic.created_at);
+                  const today = new Date();
+                  created.setHours(0, 0, 0, 0);
+                  today.setHours(0, 0, 0, 0);
+                  const diffTime = today.getTime() - created.getTime();
+                  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                  return Math.max(0, diffDays);
+                })()}{' '}
                 days
               </p>
             </div>

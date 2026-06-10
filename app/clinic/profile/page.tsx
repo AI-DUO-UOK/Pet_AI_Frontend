@@ -95,6 +95,76 @@ const DEFAULT_REVIEWS: ClinicReview[] = [
   },
 ];
 
+const formatDoctorName = (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  if (/^Dr\.?\s+/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `Dr. ${trimmed}`;
+};
+
+function parseClinicDescription(description: string) {
+  let leadVet = '';
+  let team: string[] = [];
+  let specialties: string[] = [];
+
+  if (!description) return { leadVet, team, specialties };
+
+  const lines = description.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('Lead veterinarian:')) {
+      leadVet = trimmed.replace('Lead veterinarian:', '').trim();
+    } else if (trimmed.startsWith('Team:')) {
+      const teamStr = trimmed.replace('Team:', '').trim();
+      if (teamStr) {
+        team = teamStr.split(',').map(name => name.trim()).filter(Boolean);
+      }
+    } else if (trimmed.startsWith('Specialties:')) {
+      const specStr = trimmed.replace('Specialties:', '').trim();
+      if (specStr) {
+        specialties = specStr.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+  }
+  return { leadVet, team, specialties };
+}
+
+function getRawDescription(description: string): string {
+  if (!description) return '';
+  const lines = description.split('\n');
+  const rawLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return !trimmed.startsWith('Specialties:') && 
+           !trimmed.startsWith('Lead veterinarian:') && 
+           !trimmed.startsWith('Team:');
+  });
+  return rawLines.join('\n').trim();
+}
+
+function rebuildDescription(
+  rawDesc: string,
+  currentServices: string[],
+  currentDoctors: string[]
+): string {
+  const parts = [rawDesc.trim()];
+  
+  if (currentServices.length > 0) {
+    parts.push(`Specialties: ${currentServices.join(', ')}`);
+  }
+  
+  if (currentDoctors.length > 0) {
+    const leadVet = currentDoctors[0];
+    parts.push(`Lead veterinarian: ${leadVet}`);
+    if (currentDoctors.length > 1) {
+      parts.push(`Team: ${currentDoctors.slice(1).join(', ')}`);
+    }
+  }
+  
+  return parts.filter(Boolean).join('\n\n');
+}
+
 export default function ClinicProfilePage() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ClinicProfile | null>(null);
@@ -104,9 +174,9 @@ export default function ClinicProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
-  const [services, setServices] = useState<string[]>(DEFAULT_SERVICES);
-  const [facilities, setFacilities] = useState<string[]>(DEFAULT_FACILITIES);
-  const [doctors, setDoctors] = useState<string[]>(DEFAULT_DOCTORS);
+  const [services, setServices] = useState<string[]>([]);
+  const [facilities, setFacilities] = useState<string[]>([]);
+  const [doctors, setDoctors] = useState<string[]>([]);
   const [reviews, setReviews] = useState<ClinicReview[]>([]);
   const [reviewStats, setReviewStats] = useState({ count: 0, averageRating: 0 });
   const [newService, setNewService] = useState('');
@@ -179,22 +249,39 @@ export default function ClinicProfilePage() {
           country: clinic.country || '',
           website: clinic.website || '',
           opening_hours: clinic.opening_hours || '',
-          description: clinic.description || '',
+          description: getRawDescription(clinic.description || ''),
         });
 
+        const { leadVet, team, specialties } = parseClinicDescription(clinic.description || '');
+        const dbDoctors = [leadVet, ...team].map(formatDoctorName).filter(Boolean);
+        const dbServices = specialties;
+
         const savedExtra = localStorage.getItem('clinicProfileExtras');
+        let initialServices = dbServices;
+        let initialFacilities: string[] = [];
+        let initialDoctors = dbDoctors;
+
         if (savedExtra) {
           try {
             const parsed = JSON.parse(savedExtra);
-            setServices(Array.isArray(parsed.services) && parsed.services.length ? parsed.services : DEFAULT_SERVICES);
-            setFacilities(Array.isArray(parsed.facilities) && parsed.facilities.length ? parsed.facilities : DEFAULT_FACILITIES);
-            setDoctors(Array.isArray(parsed.doctors) && parsed.doctors.length ? parsed.doctors : DEFAULT_DOCTORS);
+            if (parsed) {
+              if (Array.isArray(parsed.services)) initialServices = parsed.services;
+              if (Array.isArray(parsed.facilities)) initialFacilities = parsed.facilities;
+              if (Array.isArray(parsed.doctors)) initialDoctors = parsed.doctors;
+            }
           } catch {
-            setServices(DEFAULT_SERVICES);
-            setFacilities(DEFAULT_FACILITIES);
-            setDoctors(DEFAULT_DOCTORS);
+            // Keep parsed database values if localStorage parsing fails
           }
+        } else {
+          localStorage.setItem(
+            'clinicProfileExtras',
+            JSON.stringify({ services: dbServices, facilities: [], doctors: dbDoctors })
+          );
         }
+
+        setServices(initialServices);
+        setFacilities(initialFacilities);
+        setDoctors(initialDoctors);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -279,7 +366,9 @@ export default function ClinicProfilePage() {
       formData.append('country', formState.country);
       formData.append('website', formState.website);
       formData.append('opening_hours', formState.opening_hours);
-      formData.append('description', formState.description);
+      const rawDesc = formState.description;
+      const finalDescription = rebuildDescription(rawDesc, services, doctors);
+      formData.append('description', finalDescription);
 
       if (photoFile) {
         formData.append('photo', photoFile);

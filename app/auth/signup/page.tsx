@@ -137,6 +137,9 @@ export default function SignupPage() {
       if (formData.clinicPhoto) {
         formPayload.append('clinic_photo', formData.clinicPhoto);
       }
+      if (formData.licenseFile) {
+        formPayload.append('clinic_license', formData.licenseFile);
+      }
 
       // Call backend API
       const response = await fetch('http://localhost:8000/api/auth/signup/clinic', {

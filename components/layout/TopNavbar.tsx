@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Menu, Search, Sun, Moon } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,7 +13,7 @@ interface TopNavbarProps {
 
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const { theme, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
 
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between">
@@ -50,7 +51,10 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
 
         <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1 sm:mx-2" />
 
-        <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+        <Link
+          href={role === 'clinic' ? '/clinic/profile' : '/profile'}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
           <img
             src={
               user?.avatar ||
@@ -63,7 +67,7 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
           <span className="hidden sm:block text-sm font-medium text-slate-700 dark:text-slate-200">
             {user?.name?.split(' ')[0] || 'User'}
           </span>
-        </button>
+        </Link>
       </div>
     </header>
   );

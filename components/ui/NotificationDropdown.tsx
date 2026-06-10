@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Bell, Syringe, AlertTriangle, Calendar } from 'lucide-react';
+import { Bell, Syringe, AlertTriangle, Calendar, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,6 +20,8 @@ const ICON_BY_TYPE: Record<string, { icon: any; color: string; bg: string }> = {
   alert: { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-500/20' },
   appointment: { icon: Calendar, color: 'text-primary-500', bg: 'bg-primary-100 dark:bg-primary-500/20' },
   appointment_status: { icon: Calendar, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-500/20' },
+  clinic_approval: { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-500/20' },
+  clinic_rejection: { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-500/20' },
 };
 
 export function NotificationDropdown() {

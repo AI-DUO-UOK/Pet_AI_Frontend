@@ -23,6 +23,7 @@ interface AuthContextType {
   login: (role: Role, user: User) => void;
   logout: () => void;
   setRole: (role: Role) => void;
+  updateUser: (updatedFields: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -71,6 +72,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRoleState(newRole);
   };
 
+  const updateUser = (updatedFields: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...updatedFields };
+      localStorage.setItem('authUser', JSON.stringify(next));
+      return next;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -79,7 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         login,
         logout,
-        setRole
+        setRole,
+        updateUser
       }}
     >
       {children}

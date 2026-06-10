@@ -30,6 +30,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { href: '/my-pets', icon: Dog, label: 'My Pets' },
     { href: '/ai-assistant', icon: Bot, label: 'AI Assistant' },
     { href: '/find-vets', icon: Search, label: 'Find a Vet' },
+    { href: '/profile', icon: UserCircle, label: 'My Profile' },
   ];
 
   const vetLinks = [

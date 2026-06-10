@@ -85,6 +85,53 @@ interface ClinicExtras {
 const MOCK_CLINICS: Record<string, Clinic> = {} as Record<string, Clinic>;
 void Object.keys(MOCK_CLINICS);
 
+const formatDoctorName = (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  if (/^Dr\.?\s+/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `Dr. ${trimmed}`;
+};
+
+function parseClinicDescription(description: string) {
+  let leadVet = '';
+  let team: string[] = [];
+  let specialties: string[] = [];
+
+  if (!description) return { leadVet, team, specialties };
+
+  const lines = description.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('Lead veterinarian:')) {
+      leadVet = trimmed.replace('Lead veterinarian:', '').trim();
+    } else if (trimmed.startsWith('Team:')) {
+      const teamStr = trimmed.replace('Team:', '').trim();
+      if (teamStr) {
+        team = teamStr.split(',').map(name => name.trim()).filter(Boolean);
+      }
+    } else if (trimmed.startsWith('Specialties:')) {
+      const specStr = trimmed.replace('Specialties:', '').trim();
+      if (specStr) {
+        specialties = specStr.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+  }
+  return { leadVet, team, specialties };
+}
+
+function getRawDescription(description: string): string {
+  if (!description) return '';
+  const lines = description.split('\n');
+  const rawLines = lines.filter(line => {
+    const trimmed = line.trim();
+    return !trimmed.startsWith('Specialties:') && 
+           !trimmed.startsWith('Lead veterinarian:') && 
+           !trimmed.startsWith('Team:');
+  });
+  return rawLines.join('\n').trim();
+}
 
 export default function ClinicProfile() {
   const { user } = useAuth();
@@ -221,12 +268,32 @@ export default function ClinicProfile() {
         const fetchedClinic = normalizeClinic(data.clinic || {});
         const extras = loadClinicExtras();
         const clinicName = (fetchedClinic.clinicName as string) || extras.clinicName || '';
+        
+        const { leadVet, team, specialties } = parseClinicDescription(fetchedClinic.description || '');
+        const parsedDoctors = [leadVet, ...team].map(formatDoctorName).filter(Boolean);
+        
+        const finalDoctors = fetchedClinic.doctors && fetchedClinic.doctors.length 
+          ? fetchedClinic.doctors 
+          : (parsedDoctors.length ? parsedDoctors : (extras.doctors || []));
+          
+        const finalServices = fetchedClinic.services && fetchedClinic.services.length 
+          ? fetchedClinic.services 
+          : (specialties.length ? specialties : (extras.services || []));
+          
+        const finalSpecializations = fetchedClinic.specializations && fetchedClinic.specializations.length 
+          ? fetchedClinic.specializations 
+          : (specialties.length ? specialties : []);
+
+        const rawDescription = getRawDescription(fetchedClinic.description || '');
+
         setClinic({
           ...(fetchedClinic as Partial<Clinic>),
           clinicName,
-          services: fetchedClinic.services && fetchedClinic.services.length ? fetchedClinic.services : extras.services,
+          description: rawDescription,
+          services: finalServices,
           facilities: fetchedClinic.facilities && fetchedClinic.facilities.length ? fetchedClinic.facilities : extras.facilities,
-          doctors: fetchedClinic.doctors && fetchedClinic.doctors.length ? fetchedClinic.doctors : extras.doctors,
+          doctors: finalDoctors,
+          specializations: finalSpecializations,
         } as Partial<Clinic>);
 
         try {
