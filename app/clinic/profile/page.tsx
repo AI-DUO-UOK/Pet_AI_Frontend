@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Building2,
@@ -16,8 +16,37 @@ import {
   Star,
   Plus,
   X,
+  Map as MapIcon,
+  Loader2,
+  Save,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Global promise for maps loading to avoid double injection
+let mapsLoadingPromise: Promise<void> | null = null;
+
+const loadGoogleMapsScript = (apiKey: string): Promise<void> => {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if ((window as any).google?.maps) return Promise.resolve();
+  if (mapsLoadingPromise) return mapsLoadingPromise;
+
+  mapsLoadingPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      resolve();
+    };
+    script.onerror = (err) => {
+      mapsLoadingPromise = null;
+      reject(err);
+    };
+    document.head.appendChild(script);
+  });
+
+  return mapsLoadingPromise;
+};
 
 type ClinicProfile = {
   id: string;
@@ -40,6 +69,8 @@ type ClinicProfile = {
   is_rejected?: boolean;
   rejection_reason?: string | null;
   rejected_at?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 type ClinicReview = {
@@ -164,7 +195,6 @@ function rebuildDescription(
   
   return parts.filter(Boolean).join('\n\n');
 }
-
 export default function ClinicProfilePage() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ClinicProfile | null>(null);
@@ -182,6 +212,21 @@ export default function ClinicProfilePage() {
   const [newService, setNewService] = useState('');
   const [newFacility, setNewFacility] = useState('');
   const [newDoctor, setNewDoctor] = useState('');
+  
+  // Google Maps States
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
+  const [mapsError, setMapsError] = useState<string | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [showMapsConfig, setShowMapsConfig] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+
+  // Map refs
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerInstanceRef = useRef<any>(null);
+  const mapInitializedRef = useRef(false);
+
   const [formState, setFormState] = useState({
     clinic_name: '',
     phone: '',
@@ -193,6 +238,8 @@ export default function ClinicProfilePage() {
     website: '',
     opening_hours: '',
     description: '',
+    latitude: '',
+    longitude: '',
   });
 
   const clinicImageUrl = useMemo(
@@ -250,6 +297,8 @@ export default function ClinicProfilePage() {
           website: clinic.website || '',
           opening_hours: clinic.opening_hours || '',
           description: getRawDescription(clinic.description || ''),
+          latitude: clinic.latitude !== undefined && clinic.latitude !== null ? String(clinic.latitude) : '',
+          longitude: clinic.longitude !== undefined && clinic.longitude !== null ? String(clinic.longitude) : '',
         });
 
         const { leadVet, team, specialties } = parseClinicDescription(clinic.description || '');
@@ -291,6 +340,270 @@ export default function ClinicProfilePage() {
 
     fetchClinicProfile();
   }, [user?.id]);
+
+  // Check and automatically load Google Maps API
+  useEffect(() => {
+    const fetchMapsKey = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/api/config/google-maps');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.key) {
+            loadGoogleMaps(data.key);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch Maps API key from backend config:', err);
+      }
+
+      const autoApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+      if (autoApiKey) {
+        loadGoogleMaps(autoApiKey);
+      } else {
+        setShowMapsConfig(true);
+      }
+    };
+
+    fetchMapsKey();
+  }, []);
+
+  // Trigger mapCenter initialization once profile loads
+  useEffect(() => {
+    if (profile) {
+      if (
+        profile.latitude !== undefined &&
+        profile.latitude !== null &&
+        profile.longitude !== undefined &&
+        profile.longitude !== null
+      ) {
+        const lat = Number(profile.latitude);
+        const lng = Number(profile.longitude);
+        setMapCenter({ lat, lng });
+      } else {
+        // Default fallback or browser geolocation
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setMapCenter({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              });
+            },
+            () => {
+              // Default to Colombo, Sri Lanka
+              setMapCenter({ lat: 6.9271, lng: 79.8612 });
+            }
+          );
+        } else {
+          // Default to Colombo, Sri Lanka
+          setMapCenter({ lat: 6.9271, lng: 79.8612 });
+        }
+      }
+    }
+  }, [profile]);
+
+  // Load Maps helper
+  const loadGoogleMaps = async (key: string) => {
+    try {
+      setMapsError(null);
+      await loadGoogleMapsScript(key.trim());
+      setIsMapsApiLoaded(true);
+      setShowMapsConfig(false);
+    } catch (err) {
+      setMapsError('Failed to load Google Maps SDK. Please check your API Key.');
+      console.error(err);
+    }
+  };
+
+  const handleManualMapLoad = () => {
+    if (!apiKeyInput.trim()) {
+      setMapsError('Please enter a valid Google Maps API Key.');
+      return;
+    }
+    loadGoogleMaps(apiKeyInput);
+  };
+
+  const parseNominatimAddress = (data: any) => {
+    const addressObj = data.address || {};
+    
+    // Construct a line address from road, house_number, suburb, neighbourhood etc.
+    const streetParts = [
+      addressObj.house_number,
+      addressObj.road,
+      addressObj.neighbourhood,
+      addressObj.suburb
+    ].filter(Boolean);
+    
+    const addressLine = streetParts.join(', ') || data.display_name.split(',')[0];
+    
+    const city = addressObj.city || addressObj.town || addressObj.village || addressObj.county || '';
+    const state = addressObj.state || addressObj.province || addressObj.region || '';
+    const zip = addressObj.postcode || '';
+    const country = addressObj.country || '';
+    
+    return {
+      address: addressLine,
+      city,
+      state,
+      zip,
+      country
+    };
+  };
+
+  const parseGoogleAddress = (addressComponents: any[]) => {
+    let streetNumber = '';
+    let route = '';
+    let city = '';
+    let state = '';
+    let zip = '';
+    let country = '';
+    
+    for (const component of addressComponents) {
+      const types = component.types;
+      if (types.includes('street_number')) {
+        streetNumber = component.long_name;
+      } else if (types.includes('route')) {
+        route = component.long_name;
+      } else if (types.includes('locality') || types.includes('sublocality')) {
+        city = component.long_name;
+      } else if (types.includes('administrative_area_level_1')) {
+        state = component.long_name;
+      } else if (types.includes('postal_code')) {
+        zip = component.long_name;
+      } else if (types.includes('country')) {
+        country = component.long_name;
+      }
+    }
+    
+    const addressLine = [streetNumber, route].filter(Boolean).join(' ');
+    return {
+      address: addressLine,
+      city,
+      state,
+      zip,
+      country
+    };
+  };
+
+  // Initialize Map Canvas & Draggable Marker
+  useEffect(() => {
+    if (!showMap || !isMapsApiLoaded || !mapCenter || !mapContainerRef.current) return;
+
+    // Create map instance
+    const map = new (window as any).google.maps.Map(mapContainerRef.current, {
+      center: mapCenter,
+      zoom: 15,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+    });
+    mapInstanceRef.current = map;
+
+    // Create draggable marker
+    const marker = new (window as any).google.maps.Marker({
+      position: mapCenter,
+      map,
+      draggable: true,
+      animation: (window as any).google.maps.Animation.DROP,
+    });
+    markerInstanceRef.current = marker;
+
+    // Set initial coords in formState if they were empty
+    if (formState.latitude === '' || formState.longitude === '') {
+      setFormState((prev) => ({
+        ...prev,
+        latitude: String(mapCenter.lat),
+        longitude: String(mapCenter.lng),
+      }));
+    }
+
+    const fallbackToNominatim = async (lat: number, lng: number) => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`, {
+          headers: {
+            'Accept-Language': 'en',
+            'User-Agent': 'PetAIApp/1.0'
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const parsed = parseNominatimAddress(data);
+          setFormState((prev) => ({
+            ...prev,
+            address: parsed.address || prev.address,
+            city: parsed.city || prev.city,
+            state: parsed.state || prev.state,
+            zip_code: parsed.zip || prev.zip_code,
+            country: parsed.country || prev.country,
+          }));
+        }
+      } catch (err) {
+        console.error('Nominatim reverse geocoding fallback failed:', err);
+      }
+    };
+
+    // Reverse geocode helper function
+    const performReverseGeocoding = (lat: number, lng: number) => {
+      if ((window as any).google?.maps?.Geocoder) {
+        const geocoder = new (window as any).google.maps.Geocoder();
+        geocoder.geocode({ location: { lat, lng } }, (results: any, status: string) => {
+          if (status === 'OK' && results[0]) {
+            const parsed = parseGoogleAddress(results[0].address_components);
+            setFormState((prev) => ({
+              ...prev,
+              address: parsed.address || prev.address,
+              city: parsed.city || prev.city,
+              state: parsed.state || prev.state,
+              zip_code: parsed.zip || prev.zip_code,
+              country: parsed.country || prev.country,
+            }));
+          } else {
+            fallbackToNominatim(lat, lng);
+          }
+        });
+      } else {
+        fallbackToNominatim(lat, lng);
+      }
+    };
+
+    // Marker dragend listener
+    marker.addListener('dragend', () => {
+      const pos = marker.getPosition();
+      if (pos) {
+        const lat = pos.lat();
+        const lng = pos.lng();
+        setFormState((prev) => ({
+          ...prev,
+          latitude: String(lat),
+          longitude: String(lng),
+        }));
+        performReverseGeocoding(lat, lng);
+      }
+    });
+
+    // Map click listener to place the marker and update coordinates
+    map.addListener('click', (e: any) => {
+      const pos = e.latLng;
+      marker.setPosition(pos);
+      const lat = pos.lat();
+      const lng = pos.lng();
+      setFormState((prev) => ({
+        ...prev,
+        latitude: String(lat),
+        longitude: String(lng),
+      }));
+      performReverseGeocoding(lat, lng);
+    });
+
+    mapInitializedRef.current = true;
+
+    return () => {
+      mapInstanceRef.current = null;
+      markerInstanceRef.current = null;
+      mapInitializedRef.current = false;
+    };
+  }, [showMap, isMapsApiLoaded, mapCenter]);
 
   const status = profile?.verification_status || (profile?.is_rejected ? 'rejected' : profile?.is_verified ? 'approved' : 'pending');
 
@@ -372,6 +685,13 @@ export default function ClinicProfilePage() {
 
       if (photoFile) {
         formData.append('photo', photoFile);
+      }
+
+      if (formState.latitude !== '') {
+        formData.append('latitude', formState.latitude);
+      }
+      if (formState.longitude !== '') {
+        formData.append('longitude', formState.longitude);
       }
 
       galleryFiles.forEach((file) => {
@@ -484,37 +804,202 @@ export default function ClinicProfilePage() {
                 <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
                   <Phone className="w-4 h-4" /> Contact
                 </div>
-                <p className="font-semibold text-slate-900 dark:text-white">{profile?.phone || 'Not provided'}</p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{profile?.email}</p>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={formState.phone}
+                      onChange={(e) => handleFieldChange('phone', e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                      placeholder="Phone number"
+                    />
+                    <input
+                      type="email"
+                      disabled
+                      value={profile?.email || ''}
+                      className="w-full px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-400 cursor-not-allowed outline-none"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-semibold text-slate-900 dark:text-white">{profile?.phone || 'Not provided'}</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{profile?.email}</p>
+                  </>
+                )}
               </div>
               <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
-                  <MapPin className="w-4 h-4" /> Location
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <MapPin className="w-4 h-4" /> Location
+                  </div>
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMap(!showMap)}
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition-colors border border-slate-300 dark:border-slate-600"
+                    >
+                      <MapIcon className="w-3 h-3" />
+                      {showMap ? 'Hide Map' : 'Edit on Map'}
+                    </button>
+                  )}
                 </div>
-                <p className="font-semibold text-slate-900 dark:text-white">{profile?.address}</p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {[profile?.city, profile?.state, profile?.zip_code, profile?.country].filter(Boolean).join(', ') || 'Not provided'}
-                </p>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={formState.address}
+                      onChange={(e) => handleFieldChange('address', e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                      placeholder="Address line (e.g. street name)"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={formState.city}
+                        onChange={(e) => handleFieldChange('city', e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
+                        placeholder="City"
+                      />
+                      <input
+                        type="text"
+                        value={formState.state}
+                        onChange={(e) => handleFieldChange('state', e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
+                        placeholder="State / Province"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={formState.zip_code}
+                        onChange={(e) => handleFieldChange('zip_code', e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
+                        placeholder="Zip Code"
+                      />
+                      <input
+                        type="text"
+                        value={formState.country}
+                        onChange={(e) => handleFieldChange('country', e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
+                        placeholder="Country"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-semibold text-slate-900 dark:text-white">{profile?.address}</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {[profile?.city, profile?.state, profile?.zip_code, profile?.country].filter(Boolean).join(', ') || 'Not provided'}
+                    </p>
+                  </>
+                )}
               </div>
               <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
                   <Clock className="w-4 h-4" /> Hours
                 </div>
-                <p className="font-semibold text-slate-900 dark:text-white">{profile?.opening_hours || 'Not provided'}</p>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formState.opening_hours}
+                    onChange={(e) => handleFieldChange('opening_hours', e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                    placeholder="Operating hours (e.g. 9AM - 5PM)"
+                  />
+                ) : (
+                  <p className="font-semibold text-slate-900 dark:text-white">{profile?.opening_hours || 'Not provided'}</p>
+                )}
               </div>
               <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
                   <Globe className="w-4 h-4" /> Website
                 </div>
-                <p className="font-semibold text-slate-900 dark:text-white break-all">{profile?.website || 'Not provided'}</p>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formState.website}
+                    onChange={(e) => handleFieldChange('website', e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                    placeholder="Website URL (e.g. https://...)"
+                  />
+                ) : (
+                  <p className="font-semibold text-slate-900 dark:text-white break-all">{profile?.website || 'Not provided'}</p>
+                )}
               </div>
             </div>
 
+            {/* Conditional Map View */}
+            {isEditing && showMap && (
+              <div className="space-y-4 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/10">
+                {/* Google Maps API Key Setup UI */}
+                {showMapsConfig && (
+                  <div className="p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl space-y-3 bg-slate-50 dark:bg-slate-800/20">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <MapIcon className="w-4 h-4 text-primary-500" /> Use Interactive Google Maps Selector
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      To select your exact location visually, enter your Google Maps API Key below:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        placeholder="Enter Google Maps API Key (AIzaSy...)"
+                        className="flex-1 px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleManualMapLoad}
+                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        Load Map
+                      </button>
+                    </div>
+                    {mapsError && (
+                      <p className="text-xs text-red-600 dark:text-red-400">{mapsError}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Google Maps Interactive UI */}
+                {isMapsApiLoaded && (
+                  <div>
+                    <div
+                      ref={mapContainerRef}
+                      className="w-full h-64 rounded-lg border border-slate-200 dark:border-slate-700 shadow-inner"
+                      style={{ minHeight: '256px' }}
+                    />
+                    <p className="mt-1.5 text-right text-[10px] text-slate-500 dark:text-slate-400">
+                      Drag the red marker or click on the map to set your location
+                    </p>
+                  </div>
+                )}
+
+                <div className="p-3 bg-primary-50 dark:bg-primary-950/20 border border-primary-100/50 dark:border-primary-900/30 rounded-xl flex items-start gap-2.5">
+                  <MapIcon className="w-4 h-4 text-primary-500 mt-0.5" />
+                  <p className="text-xs text-primary-700 dark:text-primary-400 leading-relaxed">
+                    To set your precise address location: drag the red marker or click anywhere directly on the map. Coordinates are stored in the database.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div>
               <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">About</h3>
-              <p className="leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-line">
-                {profile?.description || 'No clinic description has been provided yet.'}
-              </p>
+              {isEditing ? (
+                <textarea
+                  rows={4}
+                  value={formState.description}
+                  onChange={(e) => handleFieldChange('description', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 resize-none"
+                  placeholder="Tell pet owners about your clinic..."
+                />
+              ) : (
+                <p className="leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-line">
+                  {profile?.description || 'No clinic description has been provided yet.'}
+                </p>
+              )}
             </div>
 
             {profile?.is_rejected && profile?.rejection_reason && (

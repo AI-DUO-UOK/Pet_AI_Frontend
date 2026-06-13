@@ -7,7 +7,6 @@ import {
   Phone,
   Mail,
   MapPin,
-  ShieldAlert,
   Save,
   Camera,
   Loader2,
@@ -19,9 +18,8 @@ import { useAuth } from '@/contexts/AuthContext';
 type OwnerProfile = {
   full_name: string;
   email: string;
-  phone?: string | null;
+  phone: string;
   address?: string | null;
-  city?: string | null;
   state?: string | null;
   zip_code?: string | null;
   country?: string | null;
@@ -79,7 +77,6 @@ export default function PetOwnerProfilePage() {
     phone: '',
     bio: '',
     address: '',
-    city: '',
     state: '',
     zip_code: '',
     country: '',
@@ -132,7 +129,6 @@ export default function PetOwnerProfilePage() {
             phone: prof.phone || '',
             bio: prof.bio || '',
             address: prof.address || '',
-            city: prof.city || '',
             state: prof.state || '',
             zip_code: prof.zip_code || '',
             country: prof.country || '',
@@ -394,7 +390,6 @@ export default function PetOwnerProfilePage() {
         phone: profile.phone || '',
         bio: profile.bio || '',
         address: profile.address || '',
-        city: profile.city || '',
         state: profile.state || '',
         zip_code: profile.zip_code || '',
         country: profile.country || '',
@@ -429,7 +424,6 @@ export default function PetOwnerProfilePage() {
       dataPayload.append('phone', formData.phone);
       dataPayload.append('bio', formData.bio);
       dataPayload.append('address', formData.address);
-      dataPayload.append('city', formData.city);
       dataPayload.append('state', formData.state);
       dataPayload.append('zip_code', formData.zip_code);
       dataPayload.append('country', formData.country);
@@ -598,12 +592,13 @@ export default function PetOwnerProfilePage() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Phone Number
+                    Phone Number *
                   </label>
                   <div className="relative">
                     <Phone className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
                     <input
                       type="tel"
+                      required
                       disabled={!isEditing}
                       value={formData.phone}
                       onChange={(e) => handleFieldChange('phone', e.target.value)}

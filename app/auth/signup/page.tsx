@@ -60,7 +60,7 @@ export default function SignupPage() {
           password: formData.password,
           first_name: firstName,
           last_name: lastName,
-          phone: formData.phone || null,
+          phone: formData.phone,
         }),
       });
 

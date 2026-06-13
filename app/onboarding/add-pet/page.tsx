@@ -74,24 +74,100 @@ export default function AddPetPage() {
     setTouched((prev) => ({ ...prev, [name]: true }));
   };
 
+  const parseAgeToDateOfBirth = (ageStr: string): string => {
+    const today = new Date();
+    let years = 0;
+    let months = 0;
+
+    const yearMatch = ageStr.match(/(\d+)\s*y/i);
+    if (yearMatch) {
+      years = parseInt(yearMatch[1], 10);
+    }
+
+    const monthMatch = ageStr.match(/(\d+)\s*m/i);
+    if (monthMatch) {
+      months = parseInt(monthMatch[1], 10);
+    }
+
+    if (!yearMatch && !monthMatch) {
+      const numMatch = ageStr.match(/(\d+)/);
+      if (numMatch) {
+        const num = parseInt(numMatch[1], 10);
+        if (ageStr.toLowerCase().includes('month')) {
+          months = num;
+        } else {
+          years = num;
+        }
+      }
+    }
+
+    if (years === 0 && months === 0) {
+      years = 1;
+    }
+
+    const birthDate = new Date(
+      today.getFullYear() - years,
+      today.getMonth() - months,
+      today.getDate()
+    );
+    
+    const yyyy = birthDate.getFullYear();
+    const mm = String(birthDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(birthDate.getDate()).padStart(2, '0');
+    
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getCurrentUserId = () => {
+    const userId = user?.id || localStorage.getItem('user_id') || '';
+    const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return UUID_PATTERN.test(userId) ? userId : '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) return;
 
+    const userId = getCurrentUserId();
+    if (!userId) {
+      setErrors({ submit: 'User session not found. Please log in again.' });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const dob = parseAgeToDateOfBirth(petData.age);
 
-      // TODO: Save pet to backend
-      console.log('Pet data:', petData);
+      const formData = new FormData();
+      formData.append('user_id', userId);
+      formData.append('name', petData.name.trim());
+      formData.append('pet_type', petData.type.toLowerCase());
+      formData.append('breed', petData.breed.trim());
+      formData.append('date_of_birth', dob);
+      formData.append('weight', '1.0'); // backend requires weight
+      formData.append('weight_unit', 'kg');
+      formData.append('gender', 'Male');
+
+      if (petData.photo) {
+        formData.append('photo', petData.photo);
+      }
+
+      const response = await fetch('http://localhost:8000/api/pets', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to add pet (${response.status}): ${errorText}`);
+      }
 
       // Redirect to dashboard
       router.push('/dashboard');
     } catch (error) {
       console.error('Error adding pet:', error);
-      setErrors({ submit: 'Failed to add pet. Please try again.' });
+      setErrors({ submit: error instanceof Error ? error.message : 'Failed to add pet. Please try again.' });
     } finally {
       setIsLoading(false);
     }
