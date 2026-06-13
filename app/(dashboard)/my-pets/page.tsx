@@ -35,6 +35,46 @@ const FALLBACK_IMAGE_BY_TYPE: Record<'Dog' | 'Cat', string> = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const DOG_BREEDS = [
+  'Sinhala Hound(Street Dog)',
+  'Labrador Retriever',
+  'German Shepherd',
+  'Golden Retriever',
+  'Rottweiler',
+  'Beagle',
+  'Shih Tzu',
+  'Pomeranian',
+  'Dachshund',
+  'Other Mixed Breed',
+  'Other Pure Breed',
+  'Unknown'
+];
+
+const CAT_BREEDS = [
+  'Domestic Shorthair (Mixed Breed)',
+  'Persian',
+  'Siamese',
+  'British Shorthair',
+  'Bengal',
+  'Maine Coon',
+  'Ceylon Cat',
+  'Other Pure Breed',
+  'Unknown'
+];
+
+const DOG_BLOOD_TYPES = [
+  'DEA 1 Positive',
+  'DEA 1 Negative',
+  'Unknown'
+];
+
+const CAT_BLOOD_TYPES = [
+  'Type A',
+  'Type B',
+  'Type AB',
+  'Unknown'
+];
+
 export default function MyPets() {
   const { user } = useAuth();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -44,11 +84,11 @@ export default function MyPets() {
     name: '',
     type: 'Dog',
     gender: 'Male',
-    breed: '',
+    breed: 'Unknown',
     dateOfBirth: '',
     weight: '',
     weightUnit: 'kg',
-    bloodType: '',
+    bloodType: 'Unknown',
     allergies: '',
     medicalConditions: '',
     notes: '',
@@ -138,7 +178,16 @@ export default function MyPets() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setPetForm((prev) => ({ ...prev, [name]: value }));
+    if (name === 'type') {
+      setPetForm((prev) => ({
+        ...prev,
+        type: value,
+        breed: 'Unknown',
+        bloodType: 'Unknown',
+      }));
+    } else {
+      setPetForm((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleVaccineRecordsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -362,15 +411,16 @@ export default function MyPets() {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Breed *
                         </label>
-                        <input
-                          type="text"
+                        <select
                           name="breed"
                           value={petForm.breed}
                           onChange={handleInputChange}
-                          required
-                          placeholder="e.g., Golden Retriever"
                           className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-                        />
+                        >
+                          {(petForm.type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS).map((b) => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="col-span-2">
@@ -403,7 +453,7 @@ export default function MyPets() {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Weight *
                         </label>
-                        <div className="flex w-2 gap-2">
+                        <div className="flex gap-2">
                           <input
                             type="number"
                             step="0.1"
@@ -412,7 +462,7 @@ export default function MyPets() {
                             onChange={handleInputChange}
                             required
                             placeholder="e.g., 25"
-                            className="flex-1 px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                            className="flex-1 min-w-0 px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
                           />
                           <select
                             name="weightUnit"
@@ -430,14 +480,16 @@ export default function MyPets() {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Blood Type
                         </label>
-                        <input
-                          type="text"
+                        <select
                           name="bloodType"
                           value={petForm.bloodType}
                           onChange={handleInputChange}
-                          placeholder="e.g., Type A, Type B"
                           className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-                        />
+                        >
+                          {(petForm.type.toLowerCase() === 'cat' ? CAT_BLOOD_TYPES : DOG_BLOOD_TYPES).map((bt) => (
+                            <option key={bt} value={bt}>{bt}</option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="col-span-2">
