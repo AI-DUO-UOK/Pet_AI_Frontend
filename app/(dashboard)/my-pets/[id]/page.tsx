@@ -15,8 +15,51 @@ import {
   Pill,
   Syringe,
   Bot,
+  Edit,
+  Upload,
+  ImageIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const DOG_BREEDS = [
+  'Sinhala Hound(Street Dog)',
+  'Labrador Retriever',
+  'German Shepherd',
+  'Golden Retriever',
+  'Rottweiler',
+  'Beagle',
+  'Shih Tzu',
+  'Pomeranian',
+  'Dachshund',
+  'Other Mixed Breed',
+  'Other Pure Breed',
+  'Unknown'
+];
+
+const CAT_BREEDS = [
+  'Domestic Shorthair (Mixed Breed)',
+  'Persian',
+  'Siamese',
+  'British Shorthair',
+  'Bengal',
+  'Maine Coon',
+  'Ceylon Cat',
+  'Other Pure Breed',
+  'Unknown'
+];
+
+const DOG_BLOOD_TYPES = [
+  'DEA 1 Positive',
+  'DEA 1 Negative',
+  'Unknown'
+];
+
+const CAT_BLOOD_TYPES = [
+  'Type A',
+  'Type B',
+  'Type AB',
+  'Unknown'
+];
 
 interface Appointment {
   id: string;
@@ -48,6 +91,10 @@ interface PetDetails {
   blood_type?: string | null;
   profile_image_url?: string | null;
   microchip_id?: string | null;
+  gender?: string | null;
+  allergies?: string | null;
+  medical_conditions?: string | null;
+  notes?: string | null;
 }
 
 const MOCK_APPOINTMENTS: Record<string, Appointment[]> = {
@@ -181,6 +228,13 @@ export default function PetProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState<any>(null);
+  const [editPhoto, setEditPhoto] = useState<string>('');
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+
   useEffect(() => {
     const fetchPet = async () => {
       try {
@@ -208,12 +262,136 @@ export default function PetProfile() {
     const birthDate = new Date(dateOfBirth);
     if (Number.isNaN(birthDate.getTime())) return '';
     const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+    
+    const diffTime = today.getTime() - birthDate.getTime();
+    if (diffTime < 0) return 'Just born';
+
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 30) {
+      if (diffDays < 7) {
+        return diffDays === 1 ? '1 day' : `${diffDays} days`;
+      }
+      const weeks = Math.floor(diffDays / 7);
+      const remainingDays = diffDays % 7;
+      return remainingDays > 0 
+        ? `${weeks} week${weeks > 1 ? 's' : ''}, ${remainingDays} day${remainingDays > 1 ? 's' : ''}`
+        : `${weeks} week${weeks > 1 ? 's' : ''}`;
     }
-    return age > 0 ? `${age} years` : 'Less than 1 year';
+
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    let days = today.getDate() - birthDate.getDate();
+
+    if (days < 0) {
+      months--;
+      const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      days += prevMonth.getDate();
+    }
+
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    if (years >= 1) {
+      if (months > 0) {
+        return `${years} year${years > 1 ? 's' : ''}, ${months} month${months > 1 ? 's' : ''}`;
+      }
+      return `${years} year${years > 1 ? 's' : ''}`;
+    }
+
+    return `${months} month${months > 1 ? 's' : ''}`;
+  };
+
+  const handleOpenEdit = () => {
+    if (!petDetails) return;
+    setEditForm({
+      name: petDetails.name,
+      type: petDetails.type || 'Dog',
+      breed: petDetails.breed || 'Unknown',
+      gender: petDetails.gender || 'Male',
+      dateOfBirth: petDetails.date_of_birth ? petDetails.date_of_birth.split('T')[0] : '',
+      weight: petDetails.weight || '',
+      weightUnit: petDetails.weight_unit || 'kg',
+      bloodType: petDetails.blood_type || 'Unknown',
+      allergies: petDetails.allergies || '',
+      medicalConditions: petDetails.medical_conditions || '',
+      notes: petDetails.notes || '',
+    });
+    setEditPhoto(petDetails.profile_image_url || '');
+    setEditPhotoFile(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    if (name === 'type') {
+      setEditForm((prev: any) => ({
+        ...prev,
+        type: value,
+        breed: 'Unknown',
+        bloodType: 'Unknown',
+      }));
+    } else {
+      setEditForm((prev: any) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleEditPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm || !petDetails) return;
+
+    try {
+      setIsEditSubmitting(true);
+      const formData = new FormData();
+      formData.append('name', editForm.name);
+      formData.append('pet_type', editForm.type);
+      formData.append('breed', editForm.breed);
+      formData.append('date_of_birth', editForm.dateOfBirth);
+      formData.append('weight', editForm.weight);
+      formData.append('weight_unit', editForm.weightUnit);
+      formData.append('gender', editForm.gender);
+      formData.append('blood_type', editForm.bloodType);
+      formData.append('allergies', editForm.allergies);
+      formData.append('medical_conditions', editForm.medicalConditions);
+      formData.append('notes', editForm.notes);
+
+      if (editPhotoFile) {
+        formData.append('photo', editPhotoFile);
+      }
+
+      const response = await fetch(`http://localhost:8000/api/pets/${petDetails.id}`, {
+        method: 'PUT',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.detail || data.error || 'Failed to update pet');
+      }
+
+      setPetDetails(data.pet);
+      setIsEditModalOpen(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update pet');
+    } finally {
+      setIsEditSubmitting(false);
+    }
   };
 
   const formatDateOfBirth = (dateOfBirth: string) => {
@@ -459,16 +637,25 @@ export default function PetProfile() {
   return (
     <div className="space-y-6">
       {/* Back Button & Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.back()}
+            className="p-2 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+            {petDetails.name}'s Profile
+          </h1>
+        </div>
         <button
-          onClick={() => router.back()}
-          className="p-2 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+          onClick={handleOpenEdit}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-medium transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <Edit className="w-4 h-4" />
+          Edit Profile
         </button>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-          {petDetails.name}'s Profile
-        </h1>
       </div>
 
       {/* Pet Details Card */}
@@ -501,6 +688,22 @@ export default function PetProfile() {
               </div>
               <div>
                 <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
+                  Gender
+                </p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {petDetails.gender || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
+                  Date of Birth
+                </p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {formatDateOfBirth(petDetails.date_of_birth)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
                   Age
                 </p>
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -523,14 +726,46 @@ export default function PetProfile() {
                   {petDetails.blood_type || '—'}
                 </p>
               </div>
-              <div className="col-span-2">
-                <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
-                  Date of Birth
-                </p>
-                <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {formatDateOfBirth(petDetails.date_of_birth)}
-                </p>
-              </div>
+              {petDetails.microchip_id && (
+                <div className="col-span-2">
+                  <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
+                    Microchip ID
+                  </p>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {petDetails.microchip_id}
+                  </p>
+                </div>
+              )}
+              {petDetails.allergies && (
+                <div className="col-span-2">
+                  <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
+                    Known Allergies
+                  </p>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {petDetails.allergies}
+                  </p>
+                </div>
+              )}
+              {petDetails.medical_conditions && (
+                <div className="col-span-2">
+                  <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
+                    Medical Conditions
+                  </p>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {petDetails.medical_conditions}
+                  </p>
+                </div>
+              )}
+              {petDetails.notes && (
+                <div className="col-span-2">
+                  <p className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
+                    Notes
+                  </p>
+                  <p className="text-base text-slate-700 dark:text-slate-300 italic whitespace-pre-wrap">
+                    "{petDetails.notes}"
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* AI Assistant Button */}
@@ -864,6 +1099,268 @@ export default function PetProfile() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+        {/* Edit Pet Modal */}
+        {isEditModalOpen && editForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg overflow-hidden bg-white border shadow-xl dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  Edit Pet Profile
+                </h2>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[80vh]">
+                <form onSubmit={handleEditSubmit} className="space-y-6">
+                  {/* Photo Upload */}
+                  <div className="flex justify-center">
+                    <label className="relative flex flex-col items-center justify-center w-40 h-40 overflow-hidden transition-colors border-2 border-dashed rounded-full cursor-pointer border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditPhotoChange}
+                        className="hidden"
+                      />
+                      {editPhoto ? (
+                        <>
+                          <img src={editPhoto} alt="Pet" className="object-cover w-full h-full" />
+                          <div className="absolute inset-0 flex items-center justify-center transition-opacity opacity-0 bg-slate-900/60 group-hover:opacity-100">
+                            <ImageIcon className="w-6 h-6 text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 mb-2" />
+                          <span className="px-2 text-xs font-medium text-center">Upload Pet Photo</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+
+                  {/* Basic Info */}
+                  <div className="p-4 space-y-4 border rounded-lg bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Basic Information</h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Pet Name *
+                        </label>
+                        <input
+                          type="text"
+                          name="name"
+                          value={editForm.name}
+                          onChange={handleEditInputChange}
+                          required
+                          placeholder="e.g., Max, Luna"
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Type *
+                        </label>
+                        <select
+                          name="type"
+                          value={editForm.type}
+                          onChange={handleEditInputChange}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        >
+                          <option>Dog</option>
+                          <option>Cat</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Gender *
+                        </label>
+                        <select
+                          name="gender"
+                          value={editForm.gender}
+                          onChange={handleEditInputChange}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        >
+                          <option>Male</option>
+                          <option>Female</option>
+                        </select>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Breed *
+                        </label>
+                        <select
+                          name="breed"
+                          value={editForm.breed}
+                          onChange={handleEditInputChange}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        >
+                          {(editForm.type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS).map((b) => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Date of Birth *
+                        </label>
+                        <input
+                          type="date"
+                          name="dateOfBirth"
+                          value={editForm.dateOfBirth}
+                          onChange={handleEditInputChange}
+                          required
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        />
+                        {editForm.dateOfBirth && (
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Age: {calculateAge(editForm.dateOfBirth)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Health Info */}
+                  <div className="p-4 space-y-4 border rounded-lg bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Health Information</h3>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Weight *
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            name="weight"
+                            value={editForm.weight}
+                            onChange={handleEditInputChange}
+                            required
+                            placeholder="e.g., 25"
+                            className="flex-1 min-w-0 px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                          />
+                          <select
+                            name="weightUnit"
+                            value={editForm.weightUnit}
+                            onChange={handleEditInputChange}
+                            className="w-20 px-2 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white text-sm"
+                          >
+                            <option>kg</option>
+                            <option>lbs</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Blood Type
+                        </label>
+                        <select
+                          name="bloodType"
+                          value={editForm.bloodType}
+                          onChange={handleEditInputChange}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        >
+                          {(editForm.type.toLowerCase() === 'cat' ? CAT_BLOOD_TYPES : DOG_BLOOD_TYPES).map((bt) => (
+                            <option key={bt} value={bt}>{bt}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Known Allergies
+                        </label>
+                        <textarea
+                          name="allergies"
+                          value={editForm.allergies}
+                          onChange={handleEditInputChange}
+                          placeholder="e.g., Chicken, Dairy"
+                          rows={2}
+                          maxLength={200}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white resize-none text-sm"
+                        />
+                        <p className="mt-1 text-right text-xs text-slate-500 dark:text-slate-400">
+                          {editForm.allergies.length}/200
+                        </p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Medical Conditions / Special Needs
+                        </label>
+                        <textarea
+                          name="medicalConditions"
+                          value={editForm.medicalConditions}
+                          onChange={handleEditInputChange}
+                          placeholder="e.g., Diabetes, Heart condition"
+                          rows={2}
+                          maxLength={300}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white resize-none text-sm"
+                        />
+                        <p className="mt-1 text-right text-xs text-slate-500 dark:text-slate-400">
+                          {editForm.medicalConditions.length}/300
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notes Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      Additional Notes
+                    </label>
+                    <textarea
+                      name="notes"
+                      value={editForm.notes}
+                      onChange={handleEditInputChange}
+                      placeholder="Any other important information about your pet..."
+                      rows={3}
+                      maxLength={500}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white resize-none"
+                    />
+                    <p className="mt-1 text-right text-xs text-slate-500 dark:text-slate-400">
+                      {editForm.notes.length}/500
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditModalOpen(false)}
+                      className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isEditSubmitting}
+                      className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      {isEditSubmitting ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </motion.div>
           </div>
         )}
