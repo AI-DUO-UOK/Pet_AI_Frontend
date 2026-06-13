@@ -371,13 +371,26 @@ export default function PetProfile() {
         body: formData,
       });
 
-      const data = await response.json();
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch {
+        setUploadMessage(`❌ Server error (${response.status}): ${response.statusText}`);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorMsg = data.detail || data.error || `Server error (${response.status})`;
+        setUploadMessage(`❌ ${errorMsg}`);
+        return;
+      }
+
       if (data.success) {
         setUploadMessage(`✅ Successfully extracted ${data.records_count} vaccine records!`);
         setHasUploadedDocument(true);
         await fetchVaccines();
       } else {
-        setUploadMessage(`❌ ${data.detail || 'Failed to process document'}`);
+        setUploadMessage(`❌ ${data.error || data.detail || 'Failed to process document'}`);
       }
     } catch (err) {
       setUploadMessage(`❌ Error: ${err instanceof Error ? err.message : 'Upload failed'}`);
@@ -386,6 +399,7 @@ export default function PetProfile() {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
 
   useEffect(() => {
     const fetchRemote = async () => {
