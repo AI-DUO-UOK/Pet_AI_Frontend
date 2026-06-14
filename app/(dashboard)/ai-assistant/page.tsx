@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -152,7 +152,7 @@ const MarkdownComponents = {
   ),
 };
 
-export default function AIAssistant() {
+function AIAssistantContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const petIdFromUrl = searchParams.get('pet_id');
@@ -1115,5 +1115,20 @@ export default function AIAssistant() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AIAssistant() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-slate-500 dark:text-slate-400">Loading AI Assistant...</p>
+        </div>
+      </div>
+    }>
+      <AIAssistantContent />
+    </Suspense>
   );
 }

@@ -11,7 +11,6 @@ export default function ForgotPasswordPage() {
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [devResetLink, setDevResetLink] = useState<string | null>(null);
 
-  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@drpaw.local';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

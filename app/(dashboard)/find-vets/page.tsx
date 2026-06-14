@@ -19,6 +19,8 @@ type ClinicListItem = {
   latitude?: number | null;
   longitude?: number | null;
   distance?: number | null;
+  description?: string | null;
+  specializations?: string[];
 };
 
 const FALLBACK_CARD_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=400&h=400&fit=crop';
@@ -353,7 +355,7 @@ export default function FindVets() {
       processed = processed.filter(
         (c) =>
           c.clinic_name.toLowerCase().includes(q) ||
-          c.description.toLowerCase().includes(q) ||
+          (c.description || '').toLowerCase().includes(q) ||
           (c.specializations || []).some((s: string) => s.toLowerCase().includes(q)) ||
           (c.doctors || []).some((d: string) => d.toLowerCase().includes(q))
       );

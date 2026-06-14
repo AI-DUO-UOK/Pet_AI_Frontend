@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Lock, Check } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function ResetPasswordPage() {

@@ -15,7 +15,6 @@ import {
   Shield,
   ChevronDown,
   ChevronUp,
-  Calendar,
   Plus,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
