@@ -5,13 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
   Filter,
-  // ChevronRight,
   Lock,
   MoreVertical,
   History,
   X as XIcon,
   Star,
   AlertCircle,
+  Syringe,
+  Shield,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  Plus,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -31,6 +36,22 @@ interface Patient {
   isNewcomer?: boolean;
   medicalHistory?: string[];
   lastVisit?: string;
+}
+
+interface VaccineRecord {
+  id: string;
+  pet_id: string;
+  vaccine_name: string;
+  vaccine_type?: string;
+  vaccination_date: string;
+  next_due_date?: string;
+  batch_number?: string;
+  veterinarian_name?: string;
+  clinic_name?: string;
+  clinic_id?: string;
+  notes?: string;
+  source: string;
+  created_at: string;
 }
 
 const formatAppointmentDate = (dateStr?: string, timeStr?: string) => {
@@ -101,6 +122,29 @@ export default function ClinicPatients() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState<string | null>(null);
 
+  // Clinic context
+  const [clinicId, setClinicId] = useState<string | null>(null);
+  const [clinicName, setClinicName] = useState<string | null>(null);
+
+  // Vaccine modal states
+  const [showVaccineFormModal, setShowVaccineFormModal] = useState(false);
+  const [showVaccineTimelineModal, setShowVaccineTimelineModal] = useState(false);
+  const [vaccinePatient, setVaccinePatient] = useState<Patient | null>(null);
+  const [isSubmittingVaccine, setIsSubmittingVaccine] = useState(false);
+  const [vaccineSubmitMessage, setVaccineSubmitMessage] = useState<string | null>(null);
+  const [vaccineForm, setVaccineForm] = useState({
+    vaccine_name: '',
+    vaccination_date: new Date().toISOString().split('T')[0],
+    next_due_date: '',
+    batch_number: '',
+    notes: '',
+  });
+
+  // Vaccine timeline states
+  const [vaccineRecords, setVaccineRecords] = useState<VaccineRecord[]>([]);
+  const [isLoadingVaccines, setIsLoadingVaccines] = useState(false);
+  const [expandedVaccineId, setExpandedVaccineId] = useState<string | null>(null);
+
   useEffect(() => {
     let mounted = true;
     const fetchPatients = async () => {
@@ -113,6 +157,12 @@ export default function ClinicPatients() {
         const clinicJson = await clinicRes.json();
         const clinic = clinicJson.clinic;
         if (!clinic || !clinic.id) return;
+
+        // Store clinic context for vaccine entry
+        if (mounted) {
+          setClinicId(clinic.id);
+          setClinicName(clinic.clinic_name || 'Clinic');
+        }
 
         const resp = await fetch(`http://localhost:8000/api/clinic/patients?clinic_id=${encodeURIComponent(clinic.id)}`);
         if (!resp.ok) return;
@@ -318,6 +368,141 @@ export default function ClinicPatients() {
     }
   };
 
+  // ---- Vaccine Management Functions ----
+
+  const formatDateForDisplay = (dateStr?: string) => {
+    if (!dateStr) return 'N/A';
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getVaccineStatus = (record: VaccineRecord): { label: string; color: string; icon: string } => {
+    if (!record.next_due_date) return { label: 'Given', color: 'text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20', icon: '✅' };
+
+    const now = new Date();
+    const dueDate = new Date(record.next_due_date);
+    const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { label: `Overdue by ${Math.abs(diffDays)} days`, color: 'text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20', icon: '🔴' };
+    if (diffDays <= 7) return { label: `Due in ${diffDays} days`, color: 'text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20', icon: '🟡' };
+    if (diffDays <= 30) return { label: `Due in ${diffDays} days`, color: 'text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20', icon: '🔵' };
+    return { label: `Due ${formatDateForDisplay(record.next_due_date)}`, color: 'text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50', icon: '📅' };
+  };
+
+  const buildVaccineTimeline = () => {
+    const grouped: Record<string, VaccineRecord[]> = {};
+    for (const record of vaccineRecords) {
+      const date = new Date(record.vaccination_date);
+      const year = date.getFullYear().toString();
+      if (!grouped[year]) grouped[year] = [];
+      grouped[year].push(record);
+    }
+    const sortedYears = Object.keys(grouped).sort((a, b) => parseInt(b) - parseInt(a));
+    return sortedYears.map(year => ({
+      year,
+      records: grouped[year].sort((a, b) =>
+        new Date(b.vaccination_date).getTime() - new Date(a.vaccination_date).getTime()
+      ),
+    }));
+  };
+
+  const openRecordVaccine = (patient: Patient) => {
+    setVaccinePatient(patient);
+    setVaccineForm({
+      vaccine_name: '',
+      vaccination_date: new Date().toISOString().split('T')[0],
+      next_due_date: '',
+      batch_number: '',
+      notes: '',
+    });
+    setVaccineSubmitMessage(null);
+    setShowVaccineFormModal(true);
+    setOpenMenu(null);
+  };
+
+  const handleVaccineSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vaccinePatient) return;
+
+    setIsSubmittingVaccine(true);
+    setVaccineSubmitMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('pet_id', vaccinePatient.petId);
+      formData.append('vaccine_name', vaccineForm.vaccine_name);
+      formData.append('vaccination_date', vaccineForm.vaccination_date);
+      if (vaccineForm.next_due_date) formData.append('next_due_date', vaccineForm.next_due_date);
+      if (vaccineForm.batch_number) formData.append('batch_number', vaccineForm.batch_number);
+      if (vaccineForm.notes) formData.append('notes', vaccineForm.notes);
+      formData.append('veterinarian_name', user?.name || 'Veterinarian');
+      if (clinicName) formData.append('clinic_name', clinicName);
+      if (clinicId) formData.append('clinic_id', clinicId);
+      formData.append('source', 'vet_entry');
+
+      const response = await fetch('http://localhost:8000/api/vaccines/manual-entry', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.detail || data.error || 'Failed to record vaccine');
+      }
+
+      setVaccineSubmitMessage('✅ Vaccine record added successfully!');
+      setVaccineForm({
+        vaccine_name: '',
+        vaccination_date: new Date().toISOString().split('T')[0],
+        next_due_date: '',
+        batch_number: '',
+        notes: '',
+      });
+
+      // Auto-close after a brief delay
+      setTimeout(() => {
+        setShowVaccineFormModal(false);
+        setVaccinePatient(null);
+        setVaccineSubmitMessage(null);
+      }, 1500);
+    } catch (err) {
+      setVaccineSubmitMessage(`❌ ${err instanceof Error ? err.message : 'Failed to record vaccine'}`);
+    } finally {
+      setIsSubmittingVaccine(false);
+    }
+  };
+
+  const openVaccineTimeline = async (patient: Patient) => {
+    setVaccinePatient(patient);
+    setVaccineRecords([]);
+    setExpandedVaccineId(null);
+    setIsLoadingVaccines(true);
+    setShowVaccineTimelineModal(true);
+    setOpenMenu(null);
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/vaccines/${encodeURIComponent(patient.petId)}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.records) {
+          setVaccineRecords(data.records);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching vaccines:', err);
+    } finally {
+      setIsLoadingVaccines(false);
+    }
+  };
+
+  const vaccineTimeline = buildVaccineTimeline();
+
   return (
     <div className="space-y-6">
       <div>
@@ -515,6 +700,20 @@ export default function ClinicPatients() {
                                   className="absolute right-0 z-10 mt-2 bg-white border rounded-lg shadow-lg top-full dark:bg-slate-800 border-slate-200 dark:border-slate-700 min-w-48"
                                 >
                                   <button
+                                    onClick={() => openRecordVaccine(patient)}
+                                    className="flex items-center w-full gap-2 px-4 py-3 text-sm text-left transition-colors border-b text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 border-slate-200 dark:border-slate-700"
+                                  >
+                                    <Syringe className="w-4 h-4" />
+                                    Record Vaccine
+                                  </button>
+                                  <button
+                                    onClick={() => openVaccineTimeline(patient)}
+                                    className="flex items-center w-full gap-2 px-4 py-3 text-sm text-left transition-colors border-b text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-slate-200 dark:border-slate-700"
+                                  >
+                                    <Shield className="w-4 h-4" />
+                                    Vaccine Timeline
+                                  </button>
+                                  <button
                                     onClick={() => viewHistory(patient)}
                                     className="flex items-center w-full gap-2 px-4 py-3 text-sm text-left transition-colors border-b text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700"
                                   >
@@ -695,6 +894,364 @@ export default function ClinicPatients() {
               <div className="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-800">
                 <button
                   onClick={() => setShowHistoryModal(false)}
+                  className="px-4 py-2 font-medium transition-colors rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Record Vaccine Modal */}
+      <AnimatePresence>
+        {showVaccineFormModal && vaccinePatient && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowVaccineFormModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 flex items-center justify-between p-6 bg-white border-b border-slate-200 dark:border-slate-800 dark:bg-slate-900 rounded-t-2xl">
+                <div>
+                  <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900 dark:text-white">
+                    <Syringe className="w-5 h-5 text-green-600" />
+                    Record Vaccine
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    For <strong>{vaccinePatient.petName}</strong> • Owner: {vaccinePatient.petOwner}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowVaccineFormModal(false)}
+                  className="p-2 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <XIcon className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleVaccineSubmit} className="p-6 space-y-5">
+                {/* Auto-filled info */}
+                <div className="grid gap-3 p-4 rounded-lg sm:grid-cols-2 bg-slate-50 dark:bg-slate-800/50">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Veterinarian</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{user?.name || 'Veterinarian'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Clinic</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{clinicName || 'Clinic'}</p>
+                  </div>
+                </div>
+
+                {/* Vaccine Name */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Vaccine Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., Rabies, DHPP, Bordetella"
+                    value={vaccineForm.vaccine_name}
+                    onChange={(e) => setVaccineForm({ ...vaccineForm, vaccine_name: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all dark:text-white"
+                  />
+                </div>
+
+                {/* Date Given + Next Due Date */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      Date Given <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={vaccineForm.vaccination_date}
+                      onChange={(e) => setVaccineForm({ ...vaccineForm, vaccination_date: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      Next Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={vaccineForm.next_due_date}
+                      onChange={(e) => setVaccineForm({ ...vaccineForm, next_due_date: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Batch Number */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Batch / Lot Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., LOT-2025-A123"
+                    value={vaccineForm.batch_number}
+                    onChange={(e) => setVaccineForm({ ...vaccineForm, batch_number: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all dark:text-white"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Notes
+                  </label>
+                  <textarea
+                    placeholder="Additional notes about this vaccination..."
+                    value={vaccineForm.notes}
+                    onChange={(e) => setVaccineForm({ ...vaccineForm, notes: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all dark:text-white resize-none"
+                  />
+                </div>
+
+                {/* Submit message */}
+                {vaccineSubmitMessage && (
+                  <div className={`text-sm p-3 rounded-lg border ${
+                    vaccineSubmitMessage.startsWith('✅')
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
+                      : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-700 dark:text-red-300'
+                  }`}>
+                    {vaccineSubmitMessage}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowVaccineFormModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingVaccine}
+                    className="flex items-center justify-center flex-1 gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {isSubmittingVaccine ? 'Recording...' : 'Record Vaccine'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Vaccine Timeline Modal */}
+      <AnimatePresence>
+        {showVaccineTimelineModal && vaccinePatient && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowVaccineTimelineModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 flex items-center justify-between p-6 bg-white border-b border-slate-200 dark:border-slate-800 dark:bg-slate-900 rounded-t-2xl">
+                <div>
+                  <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900 dark:text-white">
+                    <Shield className="w-5 h-5 text-green-600" />
+                    Vaccination History & Timeline
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    <strong>{vaccinePatient.petName}</strong> • Owner: {vaccinePatient.petOwner}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setShowVaccineTimelineModal(false);
+                      openRecordVaccine(vaccinePatient);
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Vaccine
+                  </button>
+                  <button
+                    onClick={() => setShowVaccineTimelineModal(false)}
+                    className="p-2 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <XIcon className="w-5 h-5 text-slate-500" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6">
+                {isLoadingVaccines ? (
+                  <div className="py-12 text-center text-slate-500 dark:text-slate-400">
+                    Loading vaccination records...
+                  </div>
+                ) : vaccineRecords.length === 0 ? (
+                  <div className="py-12 space-y-4 text-center">
+                    <div className="flex items-center justify-center w-16 h-16 mx-auto rounded-full bg-slate-100 dark:bg-slate-800">
+                      <Syringe className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-900 dark:text-white">No Vaccine Records</h3>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        No vaccination records found for this pet yet.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowVaccineTimelineModal(false);
+                        openRecordVaccine(vaccinePatient);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Record First Vaccine
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Stats summary */}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="p-3 text-center border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white">{vaccineRecords.length}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Total Vaccines</p>
+                      </div>
+                      <div className="p-3 text-center border rounded-lg bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
+                        <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                          {vaccineRecords.filter(r => !r.next_due_date || new Date(r.next_due_date) >= new Date()).length}
+                        </p>
+                        <p className="text-xs text-green-600 dark:text-green-500">Up to Date</p>
+                      </div>
+                      <div className="p-3 text-center border rounded-lg bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700">
+                        <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                          {vaccineRecords.filter(r => {
+                            if (!r.next_due_date) return false;
+                            const diff = Math.ceil((new Date(r.next_due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                            return diff > 0 && diff <= 30;
+                          }).length}
+                        </p>
+                        <p className="text-xs text-amber-600 dark:text-amber-500">Due Soon</p>
+                      </div>
+                      <div className="p-3 text-center border rounded-lg bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700">
+                        <p className="text-2xl font-bold text-red-700 dark:text-red-400">
+                          {vaccineRecords.filter(r => r.next_due_date && new Date(r.next_due_date) < new Date()).length}
+                        </p>
+                        <p className="text-xs text-red-600 dark:text-red-500">Overdue</p>
+                      </div>
+                    </div>
+
+                    {/* Timeline by year */}
+                    <div className="relative pl-8 space-y-6 border-l-2 border-green-300 dark:border-green-700">
+                      {vaccineTimeline.map(({ year, records }) => (
+                        <div key={year}>
+                          {/* Year header */}
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="absolute left-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 -translate-x-1/2" />
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{year}</h3>
+                          </div>
+
+                          {/* Records for this year */}
+                          <div className="ml-2 space-y-2">
+                            {records.map((record) => {
+                              const status = getVaccineStatus(record);
+                              const isExpanded = expandedVaccineId === record.id;
+
+                              return (
+                                <motion.div
+                                  key={record.id}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  className={`rounded-lg border p-3 cursor-pointer transition-all ${status.color}`}
+                                  onClick={() => setExpandedVaccineId(isExpanded ? null : record.id)}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-2 min-w-0">
+                                      <Syringe className="w-4 h-4 mt-0.5 flex-shrink-0 text-slate-600 dark:text-slate-400" />
+                                      <div className="min-w-0">
+                                        <p className="font-semibold truncate text-slate-900 dark:text-white">
+                                          {record.vaccine_name}
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                          Given: {formatDateForDisplay(record.vaccination_date)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center flex-shrink-0 gap-2">
+                                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/80 dark:bg-slate-800/80 whitespace-nowrap">
+                                        {status.icon} {status.label}
+                                      </span>
+                                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                    </div>
+                                  </div>
+
+                                  {/* Expanded details */}
+                                  {isExpanded && (
+                                    <div className="mt-3 pt-3 border-t border-current/20 space-y-2 text-sm">
+                                      {record.vaccine_type && (
+                                        <p><span className="font-medium text-slate-600 dark:text-slate-400">Type:</span> {record.vaccine_type}</p>
+                                      )}
+                                      {record.batch_number && (
+                                        <p><span className="font-medium text-slate-600 dark:text-slate-400">Batch:</span> {record.batch_number}</p>
+                                      )}
+                                      {record.veterinarian_name && (
+                                        <p><span className="font-medium text-slate-600 dark:text-slate-400">Vet:</span> {record.veterinarian_name}</p>
+                                      )}
+                                      {record.clinic_name && (
+                                        <p><span className="font-medium text-slate-600 dark:text-slate-400">Clinic:</span> {record.clinic_name}</p>
+                                      )}
+                                      {record.next_due_date && (
+                                        <p><span className="font-medium text-slate-600 dark:text-slate-400">Next Due:</span> {formatDateForDisplay(record.next_due_date)}</p>
+                                      )}
+                                      {record.notes && (
+                                        <p><span className="font-medium text-slate-600 dark:text-slate-400">Notes:</span> {record.notes}</p>
+                                      )}
+                                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                                        Source: {record.source === 'vlm_extracted' ? 'Document Upload' : record.source === 'vet_entry' ? 'Veterinarian' : 'Manual'}
+                                      </p>
+                                    </div>
+                                  )}
+                                </motion.div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  onClick={() => setShowVaccineTimelineModal(false)}
                   className="px-4 py-2 font-medium transition-colors rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600"
                 >
                   Close
