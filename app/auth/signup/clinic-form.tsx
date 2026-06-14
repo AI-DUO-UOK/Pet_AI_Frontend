@@ -5,6 +5,7 @@ import {
   Building2,
   Phone,
   Mail,
+  Lock,
   MapPin,
   FileText,
   Upload,
@@ -19,6 +20,7 @@ export interface ClinicFormData {
   clinicName: string;
   contactNumber: string;
   email: string;
+  password: string;
   address: string;
   description: string;
   operatingHours: string;
@@ -39,6 +41,7 @@ export function ClinicSignupForm({ onSubmit, isLoading }: ClinicSignupFormProps)
     clinicName: '',
     contactNumber: '',
     email: '',
+    password: '',
     address: '',
     description: '',
     operatingHours: '',
@@ -103,6 +106,7 @@ export function ClinicSignupForm({ onSubmit, isLoading }: ClinicSignupFormProps)
     formData.clinicName &&
     formData.contactNumber &&
     formData.email &&
+    formData.password &&
     formData.address &&
     formData.description &&
     formData.operatingHours &&
@@ -175,6 +179,24 @@ export function ClinicSignupForm({ onSubmit, isLoading }: ClinicSignupFormProps)
                 onChange={handleInputChange}
                 required
                 placeholder="clinic@example.com"
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+              Password *
+            </label>
+            <div className="relative">
+              <Lock className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                required
+                placeholder="Enter a strong password"
                 className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
               />
             </div>
@@ -350,7 +372,7 @@ export function ClinicSignupForm({ onSubmit, isLoading }: ClinicSignupFormProps)
             <FileText className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-            Verification Documents
+            Verification Documents & Clinic Image
           </h3>
         </div>
 
@@ -401,7 +423,7 @@ export function ClinicSignupForm({ onSubmit, isLoading }: ClinicSignupFormProps)
           {/* Clinic Photo Upload */}
           <div>
             <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-              Clinic Photo
+              Clinic Logo / Cover Photo
             </label>
             <div className="relative">
               <input
@@ -428,7 +450,7 @@ export function ClinicSignupForm({ onSubmit, isLoading }: ClinicSignupFormProps)
                     <Upload className="w-5 h-5 text-slate-400" />
                     <div>
                       <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Click to upload clinic photo
+                        Click to upload clinic image
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         JPG or PNG (optional)

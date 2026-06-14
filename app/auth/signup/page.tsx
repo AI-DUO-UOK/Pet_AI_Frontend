@@ -40,12 +40,50 @@ export default function SignupPage() {
   const handlePetOwnerSignup = async (formData: PetOwnerFormData) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Validate name has at least first and last name
+      const nameParts = formData.name.trim().split(' ').filter(n => n.length > 0);
+      if (nameParts.length < 2) {
+        alert('Please enter both first and last name');
+        setIsLoading(false);
+        return;
+      }
+      
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+
+      // Call backend API
+      const response = await fetch('http://localhost:8000/api/auth/signup/owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          first_name: firstName,
+          last_name: lastName,
+          phone: formData.phone,
+        }),
+      });
+
+      const data = await response.json();
+      console.log('Pet owner signup response:', { status: response.status, data });
+
+      if (!response.ok || !data.success) {
+        const errorMsg = data.error || data.detail || 'Unknown error';
+        console.error('Pet owner signup failed:', errorMsg);
+        alert(`Signup failed: ${errorMsg}`);
+        setIsLoading(false);
+        return;
+      }
+
+      // Store user data
+      const { user_id, role, email } = data;
+      localStorage.setItem('user_id', user_id);
+      localStorage.setItem('user_role', role);
+      localStorage.setItem('user_email', email);
 
       // Store owner data in auth context
       login('owner', {
-        id: 'new-owner',
+        id: user_id,
         name: formData.name,
         email: formData.email,
       });
@@ -53,7 +91,12 @@ export default function SignupPage() {
       // Redirect to pet onboarding
       router.push('/onboarding/add-pet');
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('Pet owner signup request failed:', error);
+      if (error instanceof Error) {
+        alert(`Signup error: ${error.message}`);
+      } else {
+        alert('Signup failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -62,16 +105,72 @@ export default function SignupPage() {
   const handleClinicSignup = async (formData: ClinicFormData) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Validate required clinic fields
+      if (!formData.clinicName || !formData.address || !formData.contactNumber) {
+        alert('Please fill in clinic name, address, and contact number');
+        setIsLoading(false);
+        return;
+      }
+
+      const clinicDescription = [
+        formData.description.trim(),
+        formData.specialties ? `Specialties: ${formData.specialties}` : '',
+        formData.mainVeterinarianName ? `Lead veterinarian: ${formData.mainVeterinarianName}` : '',
+        formData.otherDoctors.length > 0 ? `Team: ${formData.otherDoctors.join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
+      const formPayload = new FormData();
+      formPayload.append('email', formData.email);
+      formPayload.append('password', formData.password);
+      formPayload.append('clinic_name', formData.clinicName);
+      formPayload.append('phone', formData.contactNumber);
+      formPayload.append('address', formData.address);
+      formPayload.append('city', '');
+      formPayload.append('state', '');
+      formPayload.append('zip_code', '');
+      formPayload.append('country', '');
+      formPayload.append('website', '');
+      formPayload.append('opening_hours', formData.operatingHours);
+      formPayload.append('description', clinicDescription || formData.description);
+      if (formData.clinicPhoto) {
+        formPayload.append('clinic_photo', formData.clinicPhoto);
+      }
+      if (formData.licenseFile) {
+        formPayload.append('clinic_license', formData.licenseFile);
+      }
+
+      // Call backend API
+      const response = await fetch('http://localhost:8000/api/auth/signup/clinic', {
+        method: 'POST',
+        body: formPayload,
+      });
+
+      const data = await response.json();
+      console.log('Clinic signup response:', { status: response.status, data });
+
+      if (!response.ok || !data.success) {
+        const errorMsg = data.error || data.detail || 'Unknown error';
+        console.error('Clinic signup failed:', errorMsg);
+        alert(`Signup failed: ${errorMsg}`);
+        setIsLoading(false);
+        return;
+      }
+
+      // Store user data
+      const { user_id, role, email } = data;
+      localStorage.setItem('user_id', user_id);
+      localStorage.setItem('user_role', role);
+      localStorage.setItem('user_email', email);
 
       setClinicName(formData.clinicName);
 
       // Store clinic data in auth context
       login('clinic', {
-        id: 'new-clinic',
+        id: user_id,
         name: formData.clinicName,
-        email: basicInfo.email,
+        email: email,
         clinicName: formData.clinicName,
         verificationStatus: 'pending',
         submittedDate: new Date().toISOString(),
@@ -79,7 +178,12 @@ export default function SignupPage() {
 
       setShowVerificationModal(true);
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('Clinic signup request failed:', error);
+      if (error instanceof Error) {
+        alert(`Signup error: ${error.message}`);
+      } else {
+        alert('Signup failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

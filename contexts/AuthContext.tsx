@@ -10,6 +10,7 @@ interface User {
   email: string;
   avatar?: string;
   role?: 'owner' | 'clinic' | 'admin';
+  permissions?: string[];
   clinicName?: string;
   verificationStatus?: 'pending' | 'approved' | 'rejected';
   submittedDate?: string;
@@ -22,21 +23,15 @@ interface AuthContextType {
   login: (role: Role, user: User) => void;
   logout: () => void;
   setRole: (role: Role) => void;
+  updateUser: (updatedFields: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const mockUser: User = {
-  id: '1',
-  name: 'Sarah Jenkins',
-  email: 'sarah@example.com',
-  avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=faces&q=80'
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [role, setRoleState] = useState<Role>('owner');
-  const [user, setUser] = useState<User | null>(mockUser);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [role, setRoleState] = useState<Role>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // Hydrate from localStorage
   useEffect(() => {
@@ -77,6 +72,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRoleState(newRole);
   };
 
+  const updateUser = (updatedFields: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...updatedFields };
+      localStorage.setItem('authUser', JSON.stringify(next));
+      return next;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -85,7 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         login,
         logout,
-        setRole
+        setRole,
+        updateUser
       }}
     >
       {children}

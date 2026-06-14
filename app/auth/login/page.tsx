@@ -3,57 +3,95 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Dog, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Dog, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
-  // Admin credentials
-  const ADMIN_EMAIL = 'admin@drpaw.com';
-  const ADMIN_PASSWORD = 'admin123';
-
-  // Clinic credentials
-  const CLINIC_EMAIL = 'clinic@mavi.com';
-  const CLINIC_PASSWORD = '123';
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedPassword = password.trim();
-    
-    if (normalizedEmail === ADMIN_EMAIL.toLowerCase() && normalizedPassword === ADMIN_PASSWORD) {
-      login('admin', {
-        id: 'admin-1',
-        name: 'Admin User',
-        email: email,
+    setError('');
+    setLoading(true);
+
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedPassword = password.trim();
+
+      // Validate input
+      if (!normalizedEmail || !normalizedPassword) {
+        setError('Please enter both email and password');
+        setLoading(false);
+        return;
+      }
+
+      // Call backend API to verify credentials
+      const response = await fetch('http://localhost:8000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password: normalizedPassword,
+        }),
       });
-      router.push('/admin/dashboard');
-    } else if (normalizedEmail === CLINIC_EMAIL.toLowerCase() && normalizedPassword === CLINIC_PASSWORD) {
-      // Clinic with full access
-      login('clinic', {
-        id: 'clinic-1',
-        name: 'Mavi Clinic',
-        email: email,
-        clinicName: 'Mavi',
-        verificationStatus: 'approved',
-        role: 'clinic',
+
+      const data = await response.json();
+
+      // Check if login was successful
+      if (!response.ok || !data.success) {
+        setError(data.error || 'Invalid email or password');
+        setLoading(false);
+        return;
+      }
+
+      // Login successful - store user info
+      const { user_id, role, permissions, email: userEmail, verification_status, first_name, last_name, avatar_url } = data;
+      const displayName = [first_name, last_name].filter(Boolean).join(' ') || userEmail;
+
+      localStorage.setItem('user_id', user_id);
+      localStorage.setItem('user_role', role);
+      localStorage.setItem('permissions', JSON.stringify(permissions));
+      localStorage.setItem('user_email', userEmail);
+      
+      // Store password for admin users (for Authorization header in admin APIs)
+      if (role === 'admin') {
+        localStorage.setItem('admin_password', normalizedPassword);
+      }
+      
+      if (verification_status) {
+        localStorage.setItem('verification_status', verification_status);
+      }
+
+      // Call AuthContext login
+      login(role, {
+        id: user_id,
+        name: displayName,
+        email: userEmail,
+        role: role,
+        permissions: permissions,
+        verificationStatus: verification_status,
+        avatar: avatar_url || undefined,
       });
-      router.push('/clinic/dashboard');
-    } else {
-      // Default owner role
-      login('owner', {
-        id: '1',
-        name: 'Sarah Jenkins',
-        email: email,
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=faces&q=80',
-      });
-      router.push('/dashboard');
+
+      // Redirect based on role
+      if (role === 'admin') {
+        router.push('/admin/dashboard');
+      } else if (role === 'clinic') {
+        router.push('/clinic/dashboard');
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -79,6 +117,12 @@ export default function LoginPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">
+                {error}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Email
@@ -88,9 +132,10 @@ export default function LoginPage() {
                 <input
                   type="email"
                   required
+                  disabled={loading}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50"
                   placeholder="Enter your email"
                 />
               </div>
@@ -103,13 +148,23 @@ export default function LoginPage() {
               <div className="relative">
                 <Lock className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                  className="w-full pl-10 pr-12 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50"
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  disabled={loading}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute -translate-y-1/2 right-3 top-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-50"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
@@ -117,21 +172,23 @@ export default function LoginPage() {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                  disabled={loading}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50"
                 />
                 <span className="text-slate-600 dark:text-slate-400">Remember me</span>
               </label>
-              <Link href="#" className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+              <Link href="/auth/forgot-password" className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
                 Forgot password?
               </Link>
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2.5 rounded-lg font-medium transition-colors"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
-              <ArrowRight className="w-4 h-4" />
+              {loading ? 'Signing in...' : 'Sign In'}
+              {!loading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
 

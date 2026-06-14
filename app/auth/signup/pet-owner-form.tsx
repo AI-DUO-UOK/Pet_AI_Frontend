@@ -6,13 +6,10 @@ import {
   Lock,
   User,
   Phone,
-  MapPin,
   Eye,
   EyeOff,
   CheckCircle,
   AlertCircle,
-  Chrome,
-  Facebook,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -27,8 +24,7 @@ export interface PetOwnerFormData {
   name: string;
   email: string;
   password: string;
-  phone?: string;
-  location?: string;
+  phone: string;
 }
 
 export function PetOwnerSignupForm({
@@ -42,7 +38,6 @@ export function PetOwnerSignupForm({
     email: initialEmail,
     password: '',
     phone: '',
-    location: '',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -127,7 +122,9 @@ export function PetOwnerSignupForm({
         }
         break;
       case 'phone':
-        if (value && !/^\+?[\d\s\-()]{10,}$/.test(value)) {
+        if (!value) {
+          newErrors.phone = 'Phone number is required';
+        } else if (!/^\+?[\d\s\-()]{10,}$/.test(value)) {
           newErrors.phone = 'Please enter a valid phone number';
         } else {
           delete newErrors.phone;
@@ -141,9 +138,11 @@ export function PetOwnerSignupForm({
     formData.name &&
     formData.email &&
     formData.password &&
+    formData.phone &&
     !errors.name &&
     !errors.email &&
-    !errors.password;
+    !errors.password &&
+    !errors.phone;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -361,16 +360,17 @@ export function PetOwnerSignupForm({
           )}
         </div>
 
-        {/* Phone (Optional) */}
+        {/* Phone */}
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-            Phone Number <span className="text-xs text-slate-500 dark:text-slate-400">(optional)</span>
+            Phone Number *
           </label>
           <div className="relative">
             <Phone className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="tel"
               name="phone"
+              required
               value={formData.phone}
               onChange={handleInputChange}
               onBlur={handleBlur}
@@ -388,24 +388,6 @@ export function PetOwnerSignupForm({
               {errors.phone}
             </div>
           )}
-        </div>
-
-        {/* Location (Optional) */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-            City/Location <span className="text-xs text-slate-500 dark:text-slate-400">(optional)</span>
-          </label>
-          <div className="relative">
-            <MapPin className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              name="location"
-              value={formData.location}
-              onChange={handleInputChange}
-              placeholder="Colombo, Sri Lanka"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-            />
-          </div>
         </div>
 
         {/* Create Account Button */}
@@ -426,41 +408,6 @@ export function PetOwnerSignupForm({
           )}
         </motion.button>
       </form>
-
-      {/* Social Login */}
-      <div className="mt-6">
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-200 dark:border-slate-700" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">
-              Or continue with
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            type="button"
-            className="py-2.5 px-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 font-medium text-slate-700 dark:text-slate-300"
-          >
-            <Chrome className="w-5 h-5" />
-            Google
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            type="button"
-            className="py-2.5 px-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 font-medium text-slate-700 dark:text-slate-300"
-          >
-            <Facebook className="w-5 h-5" />
-            Facebook
-          </motion.button>
-        </div>
-      </div>
 
       {/* Login Link */}
       <div className="mt-6 text-center text-sm">

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Menu, Search, Sun, Moon } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,9 +11,52 @@ interface TopNavbarProps {
   onMenuClick: () => void;
 }
 
+function getInitials(name?: string): string {
+  if (!name) return 'US';
+  const cleanName = name.trim();
+  if (!cleanName) return 'US';
+  const parts = cleanName.split(/\s+/);
+  if (parts.length >= 2) {
+    const first = parts[0][0] || '';
+    const second = parts[parts.length - 1][0] || '';
+    return (first + second).toUpperCase();
+  }
+  return cleanName.slice(0, Math.min(2, cleanName.length)).toUpperCase();
+}
+
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const { theme, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, role, updateUser } = useAuth();
+
+  React.useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchProfile = async () => {
+      try {
+        if (role === 'clinic') {
+          const res = await fetch(`http://localhost:8000/api/clinic/profile?user_id=${user.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.clinic?.clinic_logo_url) {
+              updateUser({ avatar: data.clinic.clinic_logo_url });
+            }
+          }
+        } else if (role === 'owner') {
+          const res = await fetch(`http://localhost:8000/api/user/profile?user_id=${user.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.profile?.profile_image_url) {
+              updateUser({ avatar: data.profile.profile_image_url });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync profile avatar in TopNavbar:', err);
+      }
+    };
+
+    fetchProfile();
+  }, [user?.id, role]);
 
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between">
@@ -50,20 +94,26 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
 
         <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1 sm:mx-2" />
 
-        <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <img
-            src={
-              user?.avatar ||
-              'https://ui-avatars.com/api/?name=User&background=0D9488&color=fff'
-            }
-            alt="Profile"
-            className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-          />
+        <Link
+          href={role === 'clinic' ? '/clinic/profile' : '/profile'}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt="Profile"
+              className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-teal-600 dark:bg-teal-500 text-white flex items-center justify-center text-xs font-semibold border border-slate-200 dark:border-slate-700">
+              {getInitials(user?.name)}
+            </div>
+          )}
 
           <span className="hidden sm:block text-sm font-medium text-slate-700 dark:text-slate-200">
             {user?.name?.split(' ')[0] || 'User'}
           </span>
-        </button>
+        </Link>
       </div>
     </header>
   );

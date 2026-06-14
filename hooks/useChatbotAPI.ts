@@ -22,10 +22,33 @@ interface StartSessionResponse {
   message: string;
 }
 
+interface PetProfilePayload {
+  id: string;
+  name: string;
+  type: string;
+  breed?: string;
+  age?: string;
+  date_of_birth?: string;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  gender?: string | null;
+  blood_type?: string | null;
+  allergies?: string | null;
+  medical_conditions?: string | null;
+  notes?: string | null;
+  microchip_id?: string | null;
+}
+
 interface AnalysisResponse {
   session_id: string;
   disease_class: string;
   confidence: number;
+  explanation: string;
+}
+
+interface DocumentAnalysisResponse {
+  session_id: string;
+  extracted_data: any;
   explanation: string;
 }
 
@@ -34,17 +57,29 @@ export const useChatbotAPI = () => {
   const [error, setError] = useState<string | null>(null);
 
   const startConversation = useCallback(
-    async (animal: 'dog' | 'cat'): Promise<StartSessionResponse | null> => {
+    async (
+      animal: 'dog' | 'cat',
+      pet_id?: string,
+      petProfile?: PetProfilePayload
+    ): Promise<StartSessionResponse | null> => {
       setLoading(true);
       setError(null);
 
       try {
+        const body: any = { animal };
+        if (pet_id) {
+          body.pet_id = pet_id;
+        }
+        if (petProfile) {
+          body.pet_profile = petProfile;
+        }
+
         const response = await fetch(`${API_BASE_URL}/api/chat/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ animal }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok) {
@@ -132,10 +167,17 @@ export const useChatbotAPI = () => {
 
         const decoder = new TextDecoder();
         let buffer = '';
+        let chunkCount = 0;
+        let totalChunkSize = 0;
+
+        console.log('[STREAM] Starting streaming response');
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            console.log('[STREAM] Stream ended. Total chunks:', chunkCount, 'Total size:', totalChunkSize);
+            break;
+          }
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
@@ -150,12 +192,16 @@ export const useChatbotAPI = () => {
                 const data = JSON.parse(jsonStr);
 
                 if (data.error) {
+                  console.error('[STREAM] Error received:', data.error);
                   onError?.(data.error);
                   setError(data.error);
                   break;
                 }
 
                 if (data.chunk !== undefined) {
+                  chunkCount++;
+                  totalChunkSize += data.chunk.length;
+                  console.log('[STREAM] Chunk', chunkCount, '- Length:', data.chunk.length, 'Done:', data.done, 'Content:', JSON.stringify(data.chunk.substring(0, 50)));
                   onChunk(data.chunk, {
                     used_rag: data.used_rag,
                     disease_detected: data.disease_detected,
@@ -221,6 +267,42 @@ export const useChatbotAPI = () => {
     []
   );
 
+  const uploadDocument = useCallback(
+    async (
+      sessionId: string,
+      file: File
+    ): Promise<DocumentAnalysisResponse | null> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        formData.append('file', file);
+
+        const response = await fetch(`${API_BASE_URL}/api/chat/upload-document`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload document: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to upload document';
+        setError(errorMsg);
+        console.error('Error uploading document:', err);
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
   const endSession = useCallback(async (sessionId: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
@@ -255,6 +337,7 @@ export const useChatbotAPI = () => {
     sendMessage,
     sendMessageStream,
     uploadImage,
+    uploadDocument,
     endSession,
   };
 };
