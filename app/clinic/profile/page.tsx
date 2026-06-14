@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Building2,
   CheckCircle2,
   AlertCircle,
   Edit2,
@@ -17,8 +16,6 @@ import {
   Plus,
   X,
   Map as MapIcon,
-  Loader2,
-  Save,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -80,10 +77,12 @@ type ClinicReview = {
   rating: number;
   comment: string;
   date: string;
+  treatment?: string;
 };
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=1200&h=800&fit=crop';
 
+/*
 const DEFAULT_SERVICES = [
   'General Checkups',
   'Vaccinations',
@@ -125,6 +124,7 @@ const DEFAULT_REVIEWS: ClinicReview[] = [
     date: '2024-02-28',
   },
 ];
+*/
 
 const formatDoctorName = (name: string) => {
   const trimmed = name.trim();
@@ -208,7 +208,7 @@ export default function ClinicProfilePage() {
   const [facilities, setFacilities] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<string[]>([]);
   const [reviews, setReviews] = useState<ClinicReview[]>([]);
-  const [reviewStats, setReviewStats] = useState({ count: 0, averageRating: 0 });
+  const [, setReviewStats] = useState({ count: 0, averageRating: 0 });
   const [newService, setNewService] = useState('');
   const [newFacility, setNewFacility] = useState('');
   const [newDoctor, setNewDoctor] = useState('');

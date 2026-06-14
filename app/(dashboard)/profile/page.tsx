@@ -475,8 +475,13 @@ export default function PetOwnerProfilePage() {
   };
 
   const currentAvatarUrl = useMemo(() => {
-    return avatarPreview || profile?.profile_image_url || DEFAULT_AVATAR;
-  }, [avatarPreview, profile?.profile_image_url]);
+    if (avatarPreview) return avatarPreview;
+    if (profile?.profile_image_url) return profile.profile_image_url;
+    const name = profile?.full_name || user?.name;
+    if (!name) return DEFAULT_AVATAR;
+    const nameParam = encodeURIComponent(name);
+    return `https://ui-avatars.com/api/?name=${nameParam}&background=0D9488&color=fff`;
+  }, [avatarPreview, profile?.profile_image_url, profile?.full_name, user?.name]);
 
   if (isLoading) {
     return (
