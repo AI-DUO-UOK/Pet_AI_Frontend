@@ -52,7 +52,7 @@ export default function LoginPage() {
       }
 
       // Login successful - store user info
-      const { user_id, role, permissions, email: userEmail, verification_status, first_name, last_name } = data;
+      const { user_id, role, permissions, email: userEmail, verification_status, first_name, last_name, avatar_url } = data;
       const displayName = [first_name, last_name].filter(Boolean).join(' ') || userEmail;
 
       localStorage.setItem('user_id', user_id);
@@ -77,6 +77,7 @@ export default function LoginPage() {
         role: role,
         permissions: permissions,
         verificationStatus: verification_status,
+        avatar: avatar_url || undefined,
       });
 
       // Redirect based on role

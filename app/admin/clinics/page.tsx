@@ -104,10 +104,10 @@ function ClinicDetailsModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-2xl my-8 bg-white border shadow-2xl dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800"
+        className="w-full max-w-2xl my-8 bg-white border shadow-2xl dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800 flex flex-col max-h-[calc(100vh-4rem)]"
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-start justify-between p-6 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="flex items-start gap-4">
             <img
               src={clinic.clinic_logo_url || 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=160&h=160&fit=crop'}
@@ -132,7 +132,7 @@ function ClinicDetailsModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Verification Document Viewer */}
           <div>
             <p className="mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -330,7 +330,7 @@ function ClinicDetailsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-800 shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 font-medium transition-colors rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
@@ -362,6 +362,17 @@ export default function AdminClinicVerification() {
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronize status filter from query parameters if present
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const statusParam = params.get('status');
+      if (statusParam === 'all' || statusParam === 'pending' || statusParam === 'approved' || statusParam === 'rejected') {
+        setStatusFilter(statusParam);
+      }
+    }
+  }, []);
 
   // Fetch clinics from backend
   useEffect(() => {

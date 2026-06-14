@@ -11,7 +11,6 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  Upload,
   FileText,
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
@@ -194,12 +193,46 @@ export default function AIAssistant() {
     const birthDate = new Date(dateOfBirth);
     if (Number.isNaN(birthDate.getTime())) return '';
     const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+    
+    const diffTime = today.getTime() - birthDate.getTime();
+    if (diffTime < 0) return 'Just born';
+
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 30) {
+      if (diffDays < 7) {
+        return diffDays === 1 ? '1 day' : `${diffDays} days`;
+      }
+      const weeks = Math.floor(diffDays / 7);
+      const remainingDays = diffDays % 7;
+      return remainingDays > 0 
+        ? `${weeks} week${weeks > 1 ? 's' : ''}, ${remainingDays} day${remainingDays > 1 ? 's' : ''}`
+        : `${weeks} week${weeks > 1 ? 's' : ''}`;
     }
-    return age > 0 ? `${age} years` : 'Less than 1 year';
+
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    let days = today.getDate() - birthDate.getDate();
+
+    if (days < 0) {
+      months--;
+      const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      days += prevMonth.getDate();
+    }
+
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    if (years >= 1) {
+      if (months > 0) {
+        return `${years} year${years > 1 ? 's' : ''}, ${months} month${months > 1 ? 's' : ''}`;
+      }
+      return `${years} year${years > 1 ? 's' : ''}`;
+    }
+
+    return `${months} month${months > 1 ? 's' : ''}`;
   };
 
   const getPetType = (pet: PetProfile): 'dog' | 'cat' =>
