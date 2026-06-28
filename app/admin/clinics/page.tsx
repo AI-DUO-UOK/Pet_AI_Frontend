@@ -60,16 +60,14 @@ function ClinicDetailsModal({
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const adminPassword = localStorage.getItem('admin_password') || '';
+      const token = localStorage.getItem('access_token');
+      if (!token) throw new Error('Session not found. Please log in again.');
       
       if (action === 'approve') {
         const response = await fetch(
           `http://localhost:8000/api/admin/clinics/${clinic.id}/approve`,
           {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${adminPassword}`,
-            },
           }
         );
         if (!response.ok) throw new Error('Failed to approve clinic');
@@ -79,7 +77,6 @@ function ClinicDetailsModal({
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${adminPassword}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ reason: message }),
@@ -379,19 +376,15 @@ export default function AdminClinicVerification() {
     const fetchClinics = async () => {
       try {
         setIsLoading(true);
-        const adminPassword = localStorage.getItem('admin_password');
+        const token = localStorage.getItem('access_token');
         
-        if (!adminPassword) {
-          setError('Admin password not found. Please log in again.');
+        if (!token) {
+          setError('Session not found. Please log in again.');
           setIsLoading(false);
           return;
         }
 
-        const response = await fetch('http://localhost:8000/api/admin/clinics', {
-          headers: {
-            'Authorization': `Bearer ${adminPassword}`,
-          },
-        });
+        const response = await fetch('http://localhost:8000/api/admin/clinics');
         
         if (!response.ok) {
           const errorText = await response.text();
@@ -432,13 +425,9 @@ export default function AdminClinicVerification() {
     // Refresh the clinic list after action
     setSelectedClinic({ id: '', action: null });
     // Re-fetch clinics
-    const adminPassword = localStorage.getItem('admin_password');
+    const token = localStorage.getItem('access_token');
     try {
-      const response = await fetch('http://localhost:8000/api/admin/clinics', {
-        headers: {
-          'Authorization': `Bearer ${adminPassword}`,
-        },
-      });
+      const response = await fetch('http://localhost:8000/api/admin/clinics');
       if (response.ok) {
         const data = await response.json();
         setClinics(data.clinics || []);

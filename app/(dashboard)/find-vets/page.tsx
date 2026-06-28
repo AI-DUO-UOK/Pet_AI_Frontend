@@ -157,7 +157,7 @@ export default function FindVets() {
     const fetchOwnerLocation = async () => {
       if (!user?.id) return;
       try {
-        const res = await fetch(`http://localhost:8000/api/user/profile?user_id=${encodeURIComponent(user.id)}`);
+        const res = await fetch(`http://localhost:8000/api/auth/profile`);
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.profile) {

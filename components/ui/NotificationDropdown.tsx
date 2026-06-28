@@ -50,7 +50,7 @@ export function NotificationDropdown() {
       if (!user?.id) return;
       try {
         setLoading(true);
-        const res = await fetch(`http://localhost:8000/api/notifications?user_id=${encodeURIComponent(user.id)}&limit=10`);
+        const res = await fetch(`http://localhost:8000/api/auth/notifications?limit=10`);
         if (!res.ok) return;
         const data = await res.json();
         setNotifications(data.notifications || []);
@@ -83,10 +83,8 @@ export function NotificationDropdown() {
     if (!user?.id) return;
     setNotifications((items) => items.map((item) => ({ ...item, is_read: true })));
     try {
-      await fetch('http://localhost:8000/api/notifications/read-all', {
+      await fetch('http://localhost:8000/api/auth/notifications/read-all', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id }),
       });
     } catch (e) {
       // ignore network issues; UI already updated

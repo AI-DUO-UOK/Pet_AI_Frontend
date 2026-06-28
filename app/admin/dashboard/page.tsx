@@ -74,16 +74,12 @@ export default function AdminDashboard() {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        const adminPassword = localStorage.getItem('admin_password');
-        if (!adminPassword) {
-          throw new Error('Admin password not found. Please log in again.');
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('Session not found. Please log in again.');
         }
 
-        const response = await fetch('http://localhost:8000/api/admin/stats', {
-          headers: {
-            Authorization: `Bearer ${adminPassword}`,
-          },
-        });
+        const response = await fetch('http://localhost:8000/api/admin/stats');
 
         if (!response.ok) {
           const errorText = await response.text();

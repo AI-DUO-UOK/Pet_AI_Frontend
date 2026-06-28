@@ -2,20 +2,33 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Public routes that don't require authentication
-const publicRoutes = ['/auth/login', '/auth/signup', '/auth/select-role'];
-
-// Routes that require specific roles
-// Route protection will be added here based on user role
+const publicRoutes = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/select-role',
+  '/auth/callback',
+  '/auth/reset-password',
+  '/auth/forgot-password',
+];
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   
-  // Check if route is public
-  if (publicRoutes.some(route => pathname.startsWith(route))) {
+  // Allow root page and public assets/routes
+  if (pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 
-  // For now, allow all protected routes (auth check can be added to actual auth implementation)
+  // Check for Supabase access token in cookies
+  const token = request.cookies.get('sb-access-token')?.value;
+
+  if (!token) {
+    const loginUrl = new URL('/auth/login', request.url);
+    // Store original destination to redirect after login if needed
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
   return NextResponse.next();
 }
 
