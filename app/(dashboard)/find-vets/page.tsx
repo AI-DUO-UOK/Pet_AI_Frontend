@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -157,7 +158,7 @@ export default function FindVets() {
     const fetchOwnerLocation = async () => {
       if (!user?.id) return;
       try {
-        const res = await fetch(`http://localhost:8000/api/user/profile?user_id=${encodeURIComponent(user.id)}`);
+        const res = await apiFetch(`/api/auth/profile`);
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.profile) {
@@ -215,7 +216,7 @@ export default function FindVets() {
     const load = async () => {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:8000/api/clinics');
+        const res = await apiFetch('/api/clinics');
         if (!res.ok) throw new Error('Failed to fetch clinics');
         const data = await res.json();
         if (data && Array.isArray(data.clinics)) {

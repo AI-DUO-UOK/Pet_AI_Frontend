@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Dog, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { GoogleButton } from '@/components/auth/GoogleButton';
 import { motion } from 'framer-motion';
 
 export default function LoginPage() {
@@ -13,8 +14,27 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { signInWithPassword, signInWithGoogle, isAuthenticated, role, user, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  // Redirect if already authenticated
+  React.useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      if (!role) {
+        router.push('/auth/select-role');
+      } else if (role === 'admin') {
+        router.push('/admin/dashboard');
+      } else if (role === 'clinic') {
+        if (user?.hasProfile) {
+          router.push('/clinic/dashboard');
+        } else {
+          router.push('/auth/signup/clinic');
+        }
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  }, [isAuthenticated, role, authLoading, router, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,63 +45,34 @@ export default function LoginPage() {
       const normalizedEmail = email.trim().toLowerCase();
       const normalizedPassword = password.trim();
 
-      // Validate input
       if (!normalizedEmail || !normalizedPassword) {
         setError('Please enter both email and password');
         setLoading(false);
         return;
       }
 
-      // Call backend API to verify credentials
-      const response = await fetch('http://localhost:8000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: normalizedEmail,
-          password: normalizedPassword,
-        }),
-      });
+      const { data, error: authError } = await signInWithPassword(normalizedEmail, normalizedPassword);
 
-      const data = await response.json();
-
-      // Check if login was successful
-      if (!response.ok || !data.success) {
-        setError(data.error || 'Invalid email or password');
+      if (authError || !data.user) {
+        setError(authError?.message || 'Invalid email or password');
         setLoading(false);
         return;
       }
 
-      // Login successful - store user info
-      const { user_id, role, permissions, email: userEmail, verification_status, first_name, last_name, avatar_url } = data;
-      const displayName = [first_name, last_name].filter(Boolean).join(' ') || userEmail;
+      // Profile details will be fetched by AuthContext. We can query immediately from our profiles/users table
+      // or let AuthContext handle the state, but doing a quick direct check is reliable.
+      const { supabase } = await import('@/lib/supabase/client');
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
 
-      localStorage.setItem('user_id', user_id);
-      localStorage.setItem('user_role', role);
-      localStorage.setItem('permissions', JSON.stringify(permissions));
-      localStorage.setItem('user_email', userEmail);
-      
-      // Store password for admin users (for Authorization header in admin APIs)
-      if (role === 'admin') {
-        localStorage.setItem('admin_password', normalizedPassword);
-      }
-      
-      if (verification_status) {
-        localStorage.setItem('verification_status', verification_status);
-      }
+      const role = dbUser?.role;
 
-      // Call AuthContext login
-      login(role, {
-        id: user_id,
-        name: displayName,
-        email: userEmail,
-        role: role,
-        permissions: permissions,
-        verificationStatus: verification_status,
-        avatar: avatar_url || undefined,
-      });
-
-      // Redirect based on role
-      if (role === 'admin') {
+      if (!role) {
+        router.push('/auth/select-role');
+      } else if (role === 'admin') {
         router.push('/admin/dashboard');
       } else if (role === 'clinic') {
         router.push('/clinic/dashboard');
@@ -90,6 +81,21 @@ export default function LoginPage() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const { error: googleError } = await signInWithGoogle();
+      if (googleError) {
+        setError(googleError.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google login failed.');
     } finally {
       setLoading(false);
     }
@@ -168,15 +174,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  disabled={loading}
-                  className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50"
-                />
-                <span className="text-slate-600 dark:text-slate-400">Remember me</span>
-              </label>
+            <div className="flex items-center justify-end text-sm">
               <Link href="/auth/forgot-password" className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
                 Forgot password?
               </Link>
@@ -191,6 +189,19 @@ export default function LoginPage() {
               {!loading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-slate-700" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">
+                OR
+              </span>
+            </div>
+          </div>
+
+          <GoogleButton onClick={handleGoogleLogin} isLoading={loading} />
 
           <div className="mt-6 text-sm text-center">
             <span className="text-slate-600 dark:text-slate-400">

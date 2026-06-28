@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -72,8 +73,7 @@ export default function ClinicDashboard() {
       setError(null);
 
       // 1. Fetch clinic profile
-      const clinicRes = await fetch(
-        `http://localhost:8000/api/clinic/profile?user_id=${encodeURIComponent(user.id)}`
+      const clinicRes = await apiFetch(`/api/clinic/profile?user_id=${encodeURIComponent(user.id)}`
       );
       if (!clinicRes.ok) {
         throw new Error('Failed to load clinic profile');
@@ -85,11 +85,9 @@ export default function ClinicDashboard() {
       if (clinicProfile?.id) {
         // 2. Fetch appointments and reviews in parallel
         const [apptsRes, reviewsRes] = await Promise.all([
-          fetch(
-            `http://localhost:8000/api/clinic/patients?clinic_id=${encodeURIComponent(clinicProfile.id)}`
+          apiFetch(`/api/clinic/patients?clinic_id=${encodeURIComponent(clinicProfile.id)}`
           ),
-          fetch(
-            `http://localhost:8000/api/reviews/clinic?clinic_id=${encodeURIComponent(clinicProfile.id)}`
+          apiFetch(`/api/reviews/clinic?clinic_id=${encodeURIComponent(clinicProfile.id)}`
           ),
         ]);
 
@@ -122,8 +120,7 @@ export default function ClinicDashboard() {
       const formData = new FormData();
       formData.append('status', newStatus);
 
-      const response = await fetch(
-        `http://localhost:8000/api/appointments/${apptId}/status`,
+      const response = await apiFetch(`/api/appointments/${apptId}/status`,
         {
           method: 'POST',
           body: formData,

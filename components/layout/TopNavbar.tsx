@@ -26,37 +26,7 @@ function getInitials(name?: string): string {
 
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const { theme, toggleTheme } = useTheme();
-  const { user, role, updateUser } = useAuth();
-
-  React.useEffect(() => {
-    if (!user?.id) return;
-
-    const fetchProfile = async () => {
-      try {
-        if (role === 'clinic') {
-          const res = await fetch(`http://localhost:8000/api/clinic/profile?user_id=${user.id}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.clinic?.clinic_logo_url) {
-              updateUser({ avatar: data.clinic.clinic_logo_url });
-            }
-          }
-        } else if (role === 'owner') {
-          const res = await fetch(`http://localhost:8000/api/user/profile?user_id=${user.id}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.profile?.profile_image_url) {
-              updateUser({ avatar: data.profile.profile_image_url });
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Failed to sync profile avatar in TopNavbar:', err);
-      }
-    };
-
-    fetchProfile();
-  }, [user?.id, role]);
+  const { user, role } = useAuth();
 
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between">

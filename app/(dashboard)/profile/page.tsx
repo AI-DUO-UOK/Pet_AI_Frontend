@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -60,7 +61,7 @@ const loadGoogleMapsScript = (apiKey: string): Promise<void> => {
 };
 
 export default function PetOwnerProfilePage() {
-  const { user, updateUser } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [profile, setProfile] = useState<OwnerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -112,8 +113,7 @@ export default function PetOwnerProfilePage() {
 
       try {
         setIsLoading(true);
-        const response = await fetch(
-          `http://localhost:8000/api/user/profile?user_id=${encodeURIComponent(user.id)}`
+        const response = await apiFetch(`/api/auth/profile?t=${Date.now()}`
         );
 
         if (!response.ok) {
@@ -155,7 +155,7 @@ export default function PetOwnerProfilePage() {
   useEffect(() => {
     const fetchMapsKey = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/config/google-maps');
+        const res = await apiFetch('/api/config/google-maps');
         if (res.ok) {
           const data = await res.json();
           if (data.key) {
@@ -441,7 +441,7 @@ export default function PetOwnerProfilePage() {
         dataPayload.append('photo', avatarFile);
       }
 
-      const response = await fetch('http://localhost:8000/api/user/profile', {
+      const response = await apiFetch('/api/auth/profile', {
         method: 'PUT',
         body: dataPayload,
       });
@@ -457,10 +457,7 @@ export default function PetOwnerProfilePage() {
         setProfile(updatedProf);
 
         // Update user session context globally (topbar, avatar, name)
-        updateUser({
-          name: updatedProf.full_name,
-          avatar: updatedProf.profile_image_url || undefined,
-        });
+        await refreshProfile();
 
         setSuccessMsg('Profile updated successfully!');
         setAvatarFile(null);
@@ -595,15 +592,14 @@ export default function PetOwnerProfilePage() {
                   </div>
                 </div>
 
-                <div>
+                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Phone Number *
+                    Phone Number
                   </label>
                   <div className="relative">
                     <Phone className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
                     <input
                       type="tel"
-                      required
                       disabled={!isEditing}
                       value={formData.phone}
                       onChange={(e) => handleFieldChange('phone', e.target.value)}

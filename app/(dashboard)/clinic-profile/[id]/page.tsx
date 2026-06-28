@@ -1,5 +1,6 @@
 /* @ts-nocheck */
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -267,7 +268,7 @@ export default function ClinicProfile() {
       try {
         setPetsLoading(true);
         setPetsError(null);
-        const response = await fetch(`http://localhost:8000/api/pets?user_id=${encodeURIComponent(userId)}`);
+        const response = await apiFetch(`/api/pets?user_id=${encodeURIComponent(userId)}`);
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Failed to fetch pets (${response.status}): ${errorText}`);
@@ -292,7 +293,7 @@ export default function ClinicProfile() {
     const load = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`http://localhost:8000/api/clinics/${encodeURIComponent(clinicId)}`);
+        const res = await apiFetch(`/api/clinics/${encodeURIComponent(clinicId)}`);
         if (!res.ok) {
           // show not found state
           setClinic(null);
@@ -331,7 +332,7 @@ export default function ClinicProfile() {
         } as Partial<Clinic>);
 
         try {
-          const reviewsRes = await fetch(`http://localhost:8000/api/reviews/clinic?clinic_id=${encodeURIComponent(clinicId)}`);
+          const reviewsRes = await apiFetch(`/api/reviews/clinic?clinic_id=${encodeURIComponent(clinicId)}`);
           if (reviewsRes.ok) {
             const reviewsJson = await reviewsRes.json();
             const reviews = reviewsJson.reviews || [];
@@ -379,7 +380,7 @@ export default function ClinicProfile() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('http://localhost:8000/api/appointments', {
+      const response = await apiFetch('/api/appointments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

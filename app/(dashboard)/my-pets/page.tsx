@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useState } from 'react';
 import { Plus, X, Upload, Image as ImageIcon } from 'lucide-react';
@@ -173,8 +174,7 @@ export default function MyPets() {
     try {
       setIsLoadingPets(true);
       setPetsError(null);
-      const response = await fetch(
-        `http://localhost:8000/api/pets?user_id=${encodeURIComponent(userId)}`
+      const response = await apiFetch(`/api/pets?user_id=${encodeURIComponent(userId)}`
       );
       if (!response.ok) {
         const errorText = await response.text();
@@ -243,7 +243,7 @@ export default function MyPets() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/pets', {
+      const response = await apiFetch('/api/pets', {
         method: 'POST',
         body: (() => {
           const formData = new FormData();

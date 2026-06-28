@@ -4,33 +4,25 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Mail, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
-  const [devResetLink, setDevResetLink] = useState<string | null>(null);
-
+  const { resetPassword } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
     setServerMessage(null);
-    setDevResetLink(null);
 
     try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setServerMessage(data.detail || data.error || 'Failed to request reset');
+      const { error } = await resetPassword(email.trim());
+      if (error) {
+        setServerMessage(error.message);
       } else {
-        setServerMessage(data.message || 'If that email is registered, a reset link has been sent.');
-        if (data.reset_link) setDevResetLink(data.reset_link);
+        setServerMessage('If that email is registered, a password reset link has been sent.');
       }
     } catch (err: any) {
       setServerMessage(err?.message || 'Network error');
@@ -60,19 +52,12 @@ export default function ForgotPasswordPage() {
             Reset your password
           </h2>
           <p className="mb-8 text-center text-slate-500 dark:text-slate-400">
-            Enter your email and we’ll open a recovery request in your mail app.
+            Enter your email and we’ll send you a recovery link.
           </p>
 
           {submitted && (
             <div className="p-3 mb-5 text-sm border rounded-lg bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300">
               {serverMessage || 'If your email is registered, a reset link has been sent.'}
-            </div>
-          )}
-
-          {devResetLink && (
-            <div className="p-3 mb-5 text-sm border rounded-lg bg-slate-50 border-slate-200 text-slate-700">
-              <strong>Dev reset link:</strong>
-              <div className="break-all mt-1 text-xs text-slate-600">{devResetLink}</div>
             </div>
           )}
 
@@ -98,13 +83,9 @@ export default function ForgotPasswordPage() {
               type="submit"
               className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-2.5 rounded-lg font-medium transition-colors"
             >
-              Send recovery request
+              Send reset link
             </button>
           </form>
-
-          <p className="mt-6 text-xs leading-relaxed text-center text-slate-500 dark:text-slate-400">
-            This version uses your mail app because the backend does not expose a password-reset API yet. If you want a full in-app reset, I can wire that next.
-          </p>
         </div>
       </motion.div>
     </div>

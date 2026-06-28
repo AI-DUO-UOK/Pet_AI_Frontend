@@ -1,51 +1,38 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-function ResetPasswordContent() {
-  const searchParams = useSearchParams();
+export default function ResetPasswordPage() {
   const router = useRouter();
-  const token = searchParams?.get('token') || '';
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!token) {
-      setMessage('Missing token. Use the link from your email.');
-    }
-  }, [token]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-    if (!token) return setMessage('Missing token');
     if (password.length < 8) return setMessage('Password must be at least 8 characters');
     if (password !== confirm) return setMessage('Passwords do not match');
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, new_password: password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.detail || data.error || 'Failed to reset password');
+      const { supabase } = await import('@/lib/supabase/client');
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setMessage(error.message);
       } else {
-        setMessage(data.message || 'Password reset successfully');
+        setMessage('Password updated successfully!');
         // Redirect to login after short delay
         setTimeout(() => router.push('/auth/login'), 1500);
       }
     } catch (err: any) {
-      setMessage(err?.message || 'Network error');
+      setMessage(err?.message || 'Error updating password');
     } finally {
       setSubmitting(false);
     }
@@ -115,20 +102,5 @@ function ResetPasswordContent() {
         </div>
       </motion.div>
     </div>
-  );
-}
-
-export default function ResetPasswordPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen p-4 bg-slate-50 dark:bg-slate-950">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-500 dark:text-slate-400">Loading reset page...</p>
-        </div>
-      </div>
-    }>
-      <ResetPasswordContent />
-    </Suspense>
   );
 }

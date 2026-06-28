@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -151,7 +152,7 @@ export default function ClinicPatients() {
         if (!user) return;
 
         // Get clinic profile for this user to obtain clinic id
-        const clinicRes = await fetch(`http://localhost:8000/api/clinic/profile?user_id=${encodeURIComponent(user.id)}`);
+        const clinicRes = await apiFetch(`/api/clinic/profile?user_id=${encodeURIComponent(user.id)}`);
         if (!clinicRes.ok) return;
         const clinicJson = await clinicRes.json();
         const clinic = clinicJson.clinic;
@@ -163,7 +164,7 @@ export default function ClinicPatients() {
           setClinicName(clinic.clinic_name || 'Clinic');
         }
 
-        const resp = await fetch(`http://localhost:8000/api/clinic/patients?clinic_id=${encodeURIComponent(clinic.id)}`);
+        const resp = await apiFetch(`/api/clinic/patients?clinic_id=${encodeURIComponent(clinic.id)}`);
         if (!resp.ok) return;
         const j = await resp.json();
         const appts = j.appointments || [];
@@ -243,7 +244,7 @@ export default function ClinicPatients() {
       try {
         const form = new FormData();
         form.append('status', backendStatus);
-        const res = await fetch(`http://localhost:8000/api/appointments/${encodeURIComponent(patientId)}/status`, {
+        const res = await apiFetch(`/api/appointments/${encodeURIComponent(patientId)}/status`, {
           method: 'POST',
           body: form,
         });
@@ -283,7 +284,7 @@ export default function ClinicPatients() {
 
     try {
       // Fetch appointments for this pet
-      const apptsRes = await fetch(`http://localhost:8000/api/appointments/pet?pet_id=${encodeURIComponent(patient.petId)}`);
+      const apptsRes = await apiFetch(`/api/appointments/pet?pet_id=${encodeURIComponent(patient.petId)}`);
       let pastApptDates: Date[] = [];
       let historyItems: string[] = [];
 
@@ -309,7 +310,7 @@ export default function ClinicPatients() {
       }
 
       // Fetch medical records for this pet
-      const medRes = await fetch(`http://localhost:8000/api/pet/medical-records?pet_id=${encodeURIComponent(patient.petId)}`);
+      const medRes = await apiFetch(`/api/pet/medical-records?pet_id=${encodeURIComponent(patient.petId)}`);
       if (medRes.ok) {
         const medData = await medRes.json();
         const records = medData.records || [];
@@ -444,7 +445,7 @@ export default function ClinicPatients() {
       if (clinicId) formData.append('clinic_id', clinicId);
       formData.append('source', 'vet_entry');
 
-      const response = await fetch('http://localhost:8000/api/vaccines/manual-entry', {
+      const response = await apiFetch('/api/vaccines/manual-entry', {
         method: 'POST',
         body: formData,
       });
@@ -486,7 +487,7 @@ export default function ClinicPatients() {
     setOpenMenu(null);
 
     try {
-      const response = await fetch(`http://localhost:8000/api/vaccines/${encodeURIComponent(patient.petId)}`);
+      const response = await apiFetch(`/api/vaccines/${encodeURIComponent(patient.petId)}`);
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.records) {
@@ -556,7 +557,7 @@ export default function ClinicPatients() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-[300px]">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800">

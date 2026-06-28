@@ -80,13 +80,13 @@ export const useSupabaseDB = () => {
 
   const insertUser = async (userData: any) => {
     if (!supabase) throw new Error('Supabase not initialized');
-    return supabase.from('auth_users').insert([userData]);
+    return supabase.from('profiles').insert([userData]);
   };
 
   const getUser = async (userId: string) => {
     if (!supabase) throw new Error('Supabase not initialized');
     return supabase
-      .from('auth_users')
+      .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();

@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -219,7 +220,7 @@ export default function PetProfile() {
     const fetchPet = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch(`http://localhost:8000/api/pets/${petId}`);
+        const response = await apiFetch(`/api/pets/${petId}`);
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Failed to load pet (${response.status}): ${errorText}`);
@@ -355,7 +356,7 @@ export default function PetProfile() {
         formData.append('photo', editPhotoFile);
       }
 
-      const response = await fetch(`http://localhost:8000/api/pets/${petDetails.id}`, {
+      const response = await apiFetch(`/api/pets/${petDetails.id}`, {
         method: 'PUT',
         body: formData,
       });
@@ -493,7 +494,7 @@ export default function PetProfile() {
     if (!petId) return;
     try {
       setIsLoadingVaccines(true);
-      const response = await fetch(`http://localhost:8000/api/vaccines/${petId}`);
+      const response = await apiFetch(`/api/vaccines/${petId}`);
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.records) {
@@ -511,7 +512,7 @@ export default function PetProfile() {
   const checkDocuments = async () => {
     if (!petId) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/vaccines/${petId}/documents`);
+      const response = await apiFetch(`/api/vaccines/${petId}/documents`);
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.documents && data.documents.length > 0) {
@@ -543,7 +544,7 @@ export default function PetProfile() {
       formData.append('pet_id', petId);
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/api/vaccines/upload-document', {
+      const response = await apiFetch('/api/vaccines/upload-document', {
         method: 'POST',
         body: formData,
       });
@@ -584,7 +585,7 @@ export default function PetProfile() {
         const clinicNameMap: Record<string, string> = {};
 
         try {
-          const clinicsRes = await fetch('http://localhost:8000/api/clinics');
+          const clinicsRes = await apiFetch('/api/clinics');
           if (clinicsRes.ok) {
             const clinicsJson = await clinicsRes.json();
             const clinics = clinicsJson.clinics || [];
@@ -597,8 +598,7 @@ export default function PetProfile() {
         }
 
         try {
-          const apptRes = await fetch(
-            `http://localhost:8000/api/appointments/pet?pet_id=${encodeURIComponent(petId)}`
+          const apptRes = await apiFetch(`/api/appointments/pet?pet_id=${encodeURIComponent(petId)}`
           );
           if (apptRes.ok) {
             const aj = await apptRes.json();
@@ -689,7 +689,7 @@ export default function PetProfile() {
 
     try {
       setIsSubmittingReview(true);
-      const response = await fetch('http://localhost:8000/api/reviews', {
+      const response = await apiFetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
