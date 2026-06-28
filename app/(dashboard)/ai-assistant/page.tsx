@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
@@ -267,7 +268,7 @@ function AIAssistantContent() {
   const autoStartSessionFromPetId = async (petId: string) => {
     try {
       setIsLoadingPets(true);
-      const response = await fetch(`http://localhost:8000/api/pets/${petId}`);
+      const response = await apiFetch(`/api/pets/${petId}`);
       if (!response.ok) {
         throw new Error('Failed to load pet');
       }
@@ -322,8 +323,7 @@ function AIAssistantContent() {
     try {
       setIsLoadingPets(true);
       setPetsError(null);
-      const response = await fetch(
-        `http://localhost:8000/api/pets?user_id=${encodeURIComponent(userId)}`
+      const response = await apiFetch(`/api/pets?user_id=${encodeURIComponent(userId)}`
       );
       if (!response.ok) {
         const errorText = await response.text();

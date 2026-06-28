@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -64,16 +65,14 @@ function ClinicDetailsModal({
       if (!token) throw new Error('Session not found. Please log in again.');
       
       if (action === 'approve') {
-        const response = await fetch(
-          `http://localhost:8000/api/admin/clinics/${clinic.id}/approve`,
+        const response = await apiFetch(`/api/admin/clinics/${clinic.id}/approve`,
           {
             method: 'POST',
           }
         );
         if (!response.ok) throw new Error('Failed to approve clinic');
       } else if (action === 'reject') {
-        const response = await fetch(
-          `http://localhost:8000/api/admin/clinics/${clinic.id}/reject`,
+        const response = await apiFetch(`/api/admin/clinics/${clinic.id}/reject`,
           {
             method: 'POST',
             headers: {
@@ -384,7 +383,7 @@ export default function AdminClinicVerification() {
           return;
         }
 
-        const response = await fetch('http://localhost:8000/api/admin/clinics');
+        const response = await apiFetch('/api/admin/clinics');
         
         if (!response.ok) {
           const errorText = await response.text();
@@ -425,9 +424,8 @@ export default function AdminClinicVerification() {
     // Refresh the clinic list after action
     setSelectedClinic({ id: '', action: null });
     // Re-fetch clinics
-    const token = localStorage.getItem('access_token');
     try {
-      const response = await fetch('http://localhost:8000/api/admin/clinics');
+      const response = await apiFetch('/api/admin/clinics');
       if (response.ok) {
         const data = await response.json();
         setClinics(data.clinics || []);

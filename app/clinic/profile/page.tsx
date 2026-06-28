@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -259,8 +260,7 @@ export default function ClinicProfilePage() {
 
       try {
         setIsLoading(true);
-        const response = await fetch(
-          `http://localhost:8000/api/clinic/profile?user_id=${encodeURIComponent(user.id)}`
+        const response = await apiFetch(`/api/clinic/profile?user_id=${encodeURIComponent(user.id)}`
         );
 
         if (!response.ok) {
@@ -272,7 +272,7 @@ export default function ClinicProfilePage() {
         const clinic: ClinicProfile = data.clinic;
         setProfile(clinic);
         try {
-          const reviewsResponse = await fetch(`http://localhost:8000/api/reviews/clinic?clinic_id=${encodeURIComponent(clinic.id)}`);
+          const reviewsResponse = await apiFetch(`/api/reviews/clinic?clinic_id=${encodeURIComponent(clinic.id)}`);
           if (reviewsResponse.ok) {
             const reviewsJson = await reviewsResponse.json();
             const realReviews = reviewsJson.reviews || [];
@@ -345,7 +345,7 @@ export default function ClinicProfilePage() {
   useEffect(() => {
     const fetchMapsKey = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/config/google-maps');
+        const res = await apiFetch('/api/config/google-maps');
         if (res.ok) {
           const data = await res.json();
           if (data.key) {
@@ -698,7 +698,7 @@ export default function ClinicProfilePage() {
         formData.append('photos', file);
       });
 
-      const response = await fetch('http://localhost:8000/api/clinic/profile', {
+      const response = await apiFetch('/api/clinic/profile', {
         method: 'PUT',
         body: formData,
       });

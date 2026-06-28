@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface PasswordStrengthProps {

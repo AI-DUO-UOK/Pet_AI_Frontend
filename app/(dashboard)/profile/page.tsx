@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -112,8 +113,7 @@ export default function PetOwnerProfilePage() {
 
       try {
         setIsLoading(true);
-        const response = await fetch(
-          `http://localhost:8000/api/auth/profile?t=${Date.now()}`
+        const response = await apiFetch(`/api/auth/profile?t=${Date.now()}`
         );
 
         if (!response.ok) {
@@ -155,7 +155,7 @@ export default function PetOwnerProfilePage() {
   useEffect(() => {
     const fetchMapsKey = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/config/google-maps');
+        const res = await apiFetch('/api/config/google-maps');
         if (res.ok) {
           const data = await res.json();
           if (data.key) {
@@ -441,7 +441,7 @@ export default function PetOwnerProfilePage() {
         dataPayload.append('photo', avatarFile);
       }
 
-      const response = await fetch('http://localhost:8000/api/auth/profile', {
+      const response = await apiFetch('/api/auth/profile', {
         method: 'PUT',
         body: dataPayload,
       });

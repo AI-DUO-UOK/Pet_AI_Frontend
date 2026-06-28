@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -79,7 +80,7 @@ export default function AdminDashboard() {
           throw new Error('Session not found. Please log in again.');
         }
 
-        const response = await fetch('http://localhost:8000/api/admin/stats');
+        const response = await apiFetch('/api/admin/stats');
 
         if (!response.ok) {
           const errorText = await response.text();

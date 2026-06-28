@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -226,15 +227,10 @@ export default function AddPetPage() {
         formData.append('photo', petData.photo);
       }
 
-      const response = await fetch('http://localhost:8000/api/pets', {
+      await apiFetch('/api/pets', {
         method: 'POST',
         body: formData,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to add pet (${response.status}): ${errorText}`);
-      }
 
       // Redirect to dashboard
       router.push('/dashboard');

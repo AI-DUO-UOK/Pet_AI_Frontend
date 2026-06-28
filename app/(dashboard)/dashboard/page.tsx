@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -40,7 +41,7 @@ export default function Dashboard() {
     const fetchSummary = async () => {
       try {
         // Fetch pets
-        const petsRes = await fetch(`http://localhost:8000/api/pets?user_id=${encodeURIComponent(userId)}`);
+        const petsRes = await apiFetch(`/api/pets?user_id=${encodeURIComponent(userId)}`);
         let petsData = [];
         if (petsRes.ok) {
           const pjson = await petsRes.json();
@@ -53,7 +54,7 @@ export default function Dashboard() {
         // Fetch appointments (vet visits) using owner-specific endpoint
         let appointments: any[] = [];
         try {
-          const apptRes = await fetch(`http://localhost:8000/api/appointments/owner?owner_id=${encodeURIComponent(userId)}`);
+          const apptRes = await apiFetch(`/api/appointments/owner?owner_id=${encodeURIComponent(userId)}`);
           if (apptRes.ok) {
             const ajson = await apptRes.json();
             appointments = ajson.appointments || [];
@@ -94,7 +95,7 @@ export default function Dashboard() {
           let totalUpcoming = 0;
           for (const pet of petsData) {
             try {
-              const vacRes = await fetch(`http://localhost:8000/api/vaccine-records?pet_id=${encodeURIComponent(pet.id)}`);
+              const vacRes = await apiFetch(`/api/vaccine-records?pet_id=${encodeURIComponent(pet.id)}`);
               if (!vacRes.ok) continue;
               const vjson = await vacRes.json();
               const records = vjson.records || [];
@@ -114,7 +115,7 @@ export default function Dashboard() {
         // Health alerts endpoint (optional)
         let healthAlerts = DEFAULT_SUMMARY.healthAlerts;
         try {
-          const alertsRes = await fetch(`http://localhost:8000/api/alerts?user_id=${encodeURIComponent(userId)}`);
+          const alertsRes = await apiFetch(`/api/alerts?user_id=${encodeURIComponent(userId)}`);
           if (alertsRes.ok) {
             const ajson = await alertsRes.json();
             healthAlerts = (ajson.alerts || []).length;

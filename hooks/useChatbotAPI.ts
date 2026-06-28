@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-
-const API_BASE_URL = 'http://localhost:8001';
+import { apiFetch } from '@/lib/api';
 
 interface ChatResponse {
   session_id: string;
@@ -74,19 +73,11 @@ export const useChatbotAPI = () => {
           body.pet_profile = petProfile;
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/chat/start`, {
+        const data = await apiFetch<StartSessionResponse>('/api/chat/start', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify(body),
+          useChatbot: true,
         });
-
-        if (!response.ok) {
-          throw new Error(`Failed to start conversation: ${response.statusText}`);
-        }
-
-        const data = await response.json();
         return data;
       } catch (err) {
         const errorMsg =
@@ -107,22 +98,14 @@ export const useChatbotAPI = () => {
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/message`, {
+        const data = await apiFetch<ChatResponse>('/api/chat/message', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             session_id: sessionId,
             message,
           }),
+          useChatbot: true,
         });
-
-        if (!response.ok) {
-          throw new Error(`Failed to send message: ${response.statusText}`);
-        }
-
-        const data = await response.json();
         return data;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to send message';
@@ -147,20 +130,15 @@ export const useChatbotAPI = () => {
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/message/stream`, {
+        const response = await apiFetch<Response>('/api/chat/message/stream', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             session_id: sessionId,
             message,
           }),
+          useChatbot: true,
+          returnRaw: true,
         });
-
-        if (!response.ok) {
-          throw new Error(`Failed to send message: ${response.statusText}`);
-        }
 
         const reader = response.body?.getReader();
         if (!reader) throw new Error('No response body');
@@ -244,16 +222,11 @@ export const useChatbotAPI = () => {
         formData.append('disease_type', diseaseType);
         formData.append('file', file);
 
-        const response = await fetch(`${API_BASE_URL}/api/chat/upload-image`, {
+        const data = await apiFetch<AnalysisResponse>('/api/chat/upload-image', {
           method: 'POST',
           body: formData,
+          useChatbot: true,
         });
-
-        if (!response.ok) {
-          throw new Error(`Failed to upload image: ${response.statusText}`);
-        }
-
-        const data = await response.json();
         return data;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to upload image';
@@ -280,16 +253,11 @@ export const useChatbotAPI = () => {
         formData.append('session_id', sessionId);
         formData.append('file', file);
 
-        const response = await fetch(`${API_BASE_URL}/api/chat/upload-document`, {
+        const data = await apiFetch<DocumentAnalysisResponse>('/api/chat/upload-document', {
           method: 'POST',
           body: formData,
+          useChatbot: true,
         });
-
-        if (!response.ok) {
-          throw new Error(`Failed to upload document: ${response.statusText}`);
-        }
-
-        const data = await response.json();
         return data;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to upload document';
@@ -308,17 +276,10 @@ export const useChatbotAPI = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/session/${sessionId}`, {
+      await apiFetch(`/api/chat/session/${sessionId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        useChatbot: true,
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to end session: ${response.statusText}`);
-      }
-
       return true;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to end session';

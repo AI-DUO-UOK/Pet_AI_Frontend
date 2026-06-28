@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2,
-  Phone,
   Mail,
   Lock,
   MapPin,
@@ -12,7 +11,6 @@ import {
   Upload,
   CheckCircle,
   Stethoscope,
-  Plus,
   X,
   AlertCircle,
   Eye,

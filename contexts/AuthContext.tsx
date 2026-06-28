@@ -1,8 +1,10 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Session } from '@supabase/supabase-js';
+import { API_BASE_URL, CHATBOT_API_URL } from '@/lib/config';
 
 // Global Fetch Interceptor to automatically attach Supabase JWT to backend requests
 if (typeof window !== 'undefined') {
@@ -18,8 +20,8 @@ if (typeof window !== 'undefined') {
     }
 
     // Dynamic URL replacement for production deployment
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
-    const chatbotUrl = process.env.NEXT_PUBLIC_CHATBOT_API_URL || 'http://localhost:8001';
+    const backendUrl = API_BASE_URL;
+    const chatbotUrl = CHATBOT_API_URL;
 
     let targetUrl = url;
     if (url.includes('localhost:8000')) {
@@ -79,6 +81,8 @@ interface User {
   phone?: string;
   verificationStatus?: 'pending' | 'approved' | 'rejected';
   hasProfile?: boolean;
+  clinicName?: string;
+  submittedDate?: string;
 }
 
 interface AuthContextType {
@@ -137,13 +141,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!clinic && !clinicError) {
           console.log('Clinic profile not found via client-side query. Trying backend fallback...');
           try {
-            const res = await window.fetch('http://localhost:8000/api/auth/profile');
-            if (res.ok) {
-              const data = await res.json();
-              if (data.success && data.role === 'clinic') {
-                clinic = data.profile;
-                console.log('Clinic profile successfully resolved via backend fallback.');
-              }
+            const data = await apiFetch('/api/auth/profile');
+            if (data && data.success && data.role === 'clinic') {
+              clinic = data.profile;
+              console.log('Clinic profile successfully resolved via backend fallback.');
             }
           } catch (err) {
             console.error('Error in clinic profile backend fallback:', err);
@@ -176,40 +177,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const lastName = nameParts.slice(1).join(' ') || '';
           
           try {
-            const res = await window.fetch('http://localhost:8000/api/auth/register/owner', {
+            const data = await apiFetch('/api/auth/register/owner', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
               body: JSON.stringify({
                 first_name: firstName,
                 last_name: lastName,
                 phone: '',
-                address: '',
-                state: '',
-                zip_code: '',
-                country: '',
-                bio: '',
               }),
             });
-            
-            if (res.ok) {
-              console.log('Pet owner profile created silently via backend.');
-              // Re-query pet_owners
-              const { data: retryOwner } = await supabase
-                .from('pet_owners')
-                .select('id, profile_image_url')
-                .eq('user_id', userId)
-                .maybeSingle();
-              if (retryOwner) {
-                owner = retryOwner;
-              }
-            } else {
-              const errText = await res.text();
-              console.error('Backend silent profile creation failed:', errText);
+            if (data && data.success) {
+              owner = data.profile;
+              console.log('Pet owner profile silently created successfully.');
             }
           } catch (err) {
-            console.error('Error calling backend to create profile:', err);
+            console.error('Error silently registering owner:', err);
           }
         }
         

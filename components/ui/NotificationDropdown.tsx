@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/api';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Bell, Syringe, AlertTriangle, Calendar, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -50,9 +51,7 @@ export function NotificationDropdown() {
       if (!user?.id) return;
       try {
         setLoading(true);
-        const res = await fetch(`http://localhost:8000/api/auth/notifications?limit=10`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await apiFetch('/api/auth/notifications?limit=10');
         setNotifications(data.notifications || []);
       } catch (e) {
         setNotifications([]);
@@ -83,7 +82,7 @@ export function NotificationDropdown() {
     if (!user?.id) return;
     setNotifications((items) => items.map((item) => ({ ...item, is_read: true })));
     try {
-      await fetch('http://localhost:8000/api/auth/notifications/read-all', {
+      await apiFetch('/api/auth/notifications/read-all', {
         method: 'POST',
       });
     } catch (e) {
