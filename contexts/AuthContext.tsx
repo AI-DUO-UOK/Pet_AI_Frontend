@@ -17,8 +17,29 @@ if (typeof window !== 'undefined') {
       url = input.url;
     }
 
-    // Intercept requests to the FastAPI backend (port 8000)
-    if (url.includes('localhost:8000') || url.startsWith('/api')) {
+    // Dynamic URL replacement for production deployment
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+    const chatbotUrl = process.env.NEXT_PUBLIC_CHATBOT_API_URL || 'http://localhost:8001';
+
+    let targetUrl = url;
+    if (url.includes('localhost:8000')) {
+      targetUrl = url.replace('http://localhost:8000', backendUrl);
+    } else if (url.includes('localhost:8001')) {
+      targetUrl = url.replace('http://localhost:8001', chatbotUrl);
+    }
+
+    if (typeof input === 'string') {
+      input = targetUrl;
+    } else if (input instanceof URL) {
+      input = new URL(targetUrl);
+    }
+
+    // Intercept requests to the FastAPI backend (either localhost or the production URL)
+    if (
+      targetUrl.includes(backendUrl) || 
+      targetUrl.includes(chatbotUrl) || 
+      targetUrl.startsWith('/api')
+    ) {
       const token = localStorage.getItem('access_token');
       if (token) {
         init = init || {};
