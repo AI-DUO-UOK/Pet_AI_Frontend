@@ -238,7 +238,7 @@ export default function ClinicSignupPage() {
 
       // 1. Authenticate if not already authenticated
       if (!isAuthenticated) {
-        const { data: authData, error: authError } = await signUp(email, password, 'clinic', contactNumber);
+        const { data: authData, error: authError } = await signUp(email, password, 'clinic', contactNumber, clinicName);
         if (authError || !authData.user) {
           throw new Error(authError?.message || 'Authentication signup failed.');
         }
