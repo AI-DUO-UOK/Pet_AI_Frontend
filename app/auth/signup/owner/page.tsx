@@ -69,7 +69,7 @@ export default function OwnerSignupPage() {
 
       if (!isAuthenticated) {
         // 1. New Email/Password Signup
-        const { data, error: signUpError } = await signUp(email, password, 'owner', phone);
+        const { data, error: signUpError } = await signUp(email, password, 'owner', phone, name);
 
         if (signUpError) {
           throw signUpError;

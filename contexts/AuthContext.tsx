@@ -92,7 +92,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, role?: Role, phone?: string) => Promise<any>;
+  signUp: (email: string, password: string, role?: Role, phone?: string, fullName?: string) => Promise<any>;
   signInWithGoogle: () => Promise<any>;
   signOut: () => Promise<void>;
   logout: () => Promise<void>;
@@ -303,7 +303,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return supabase.auth.signInWithPassword({ email, password });
   };
 
-  const signUp = async (email: string, password: string, signUpRole?: Role, phone?: string) => {
+  const signUp = async (email: string, password: string, signUpRole?: Role, phone?: string, fullName?: string) => {
     return supabase.auth.signUp({
       email,
       password,
@@ -311,6 +311,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: {
           role: signUpRole,
           phone: phone,
+          full_name: fullName,
         },
       },
     });
