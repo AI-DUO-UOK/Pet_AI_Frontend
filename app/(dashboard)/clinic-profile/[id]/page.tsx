@@ -177,6 +177,47 @@ export default function ClinicProfile() {
     return UUID_PATTERN.test(userId) ? userId : '';
   };
 
+  const getTodayDateString = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getOperatingHoursRange = (hoursStr: string) => {
+    const defaultRange = { min: '08:00', max: '18:00' };
+    if (!hoursStr) return defaultRange;
+
+    try {
+      const parts = hoursStr.split('-').map(p => p.trim());
+      if (parts.length !== 2) return defaultRange;
+
+      const convertTo24h = (timeStr: string) => {
+        // Handle formats like "09:00 AM", "9:00 AM", "18:00", etc.
+        const match = timeStr.match(/^(\d+):(\d+)\s*(AM|PM)?$/i);
+        if (!match) return null;
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2];
+        const ampm = match[3];
+
+        if (ampm) {
+          if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+          if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        }
+        return `${String(hours).padStart(2, '0')}:${minutes}`;
+      };
+
+      const min = convertTo24h(parts[0]) || defaultRange.min;
+      const max = convertTo24h(parts[1]) || defaultRange.max;
+      return { min, max };
+    } catch (e) {
+      return defaultRange;
+    }
+  };
+
+  const timeRange = getOperatingHoursRange(clinic?.operatingHours || '');
+
   const calculateAge = (dateOfBirth: string) => {
     if (!dateOfBirth) return '';
     const birthDate = new Date(dateOfBirth);
@@ -815,6 +856,7 @@ export default function ClinicProfile() {
                         <input
                           type="date"
                           value={channelForm.date}
+                          min={getTodayDateString()}
                           onChange={(e) => setChannelForm({ ...channelForm, date: e.target.value })}
                           required
                           className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
@@ -829,10 +871,15 @@ export default function ClinicProfile() {
                         <input
                           type="time"
                           value={channelForm.time}
+                          min={timeRange.min}
+                          max={timeRange.max}
                           onChange={(e) => setChannelForm({ ...channelForm, time: e.target.value })}
                           required
                           className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
                         />
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Clinic hours: {clinic?.operatingHours || '08:00 AM - 06:00 PM'}
+                        </p>
                       </div>
 
                       {/* Notes */}
@@ -970,10 +1017,10 @@ export default function ClinicProfile() {
                       <button
                         type="button"
                         onClick={() => setBookingStep('payment')}
-                        className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-all shadow-md shadow-primary-600/10 flex items-center justify-center gap-2 text-sm"
+                        className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-all shadow-md shadow-primary-600/10 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                       >
                         <ShieldCheck className="w-4 h-4" />
-                        Pay Securely
+                        Pay Securely · {formatLKR(total)}
                       </button>
                     </div>
                   </div>
@@ -1027,9 +1074,16 @@ export default function ClinicProfile() {
                         >
                           <CreditCard className="w-4 h-4 mb-1 text-slate-700 dark:text-slate-300" />
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Card</span>
-                          <div className="flex gap-0.5 mt-1">
-                            <img src="https://js.stripe.com/v3/fingerprinted/img/visa-72e5fd42.svg" alt="Visa" className="h-3 w-auto" />
-                            <img src="https://js.stripe.com/v3/fingerprinted/img/mastercard-4d18b6ba.svg" alt="MC" className="h-3 w-auto" />
+                          <div className="flex gap-1.5 mt-1.5 items-center">
+                            {/* Visa SVG */}
+                            <svg className="h-2.5 w-auto" viewBox="0 0 36 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M4.5 10H1L3.8 0H7.3L4.5 10ZM14.3 2.7C13.5 2.4 12.4 2.1 11.2 2.1C7.9 2.1 5.6 3.8 5.6 6.2C5.6 8 7.3 9 8.6 9.6C9.9 10.2 10.3 10.6 10.3 11.1C10.3 11.9 9.3 12.3 8.4 12.3 7 12.3 6.2 11.9 5.1 11.4L4.6 11.1L4.1 14.1C5 14.5 6.6 14.9 8.2 14.9C11.8 14.9 14.1 13.2 14.1 10.8C14.1 9 13 8 11.1 7.1C9.8 6.5 9.3 6.1 9.3 5.6C9.3 4.9 10.3 4.4 11.4 4.4C12.5 4.4 13.3 4.7 13.9 4.9L14.3 5.1L14.8 2.2V2.7ZM26.6 0.2H23.5C22.6 0.2 21.8 0.7 21.4 1.6L15.7 14.8H19.1L19.8 12.8H23.9L24.3 14.8H27.3L26.6 0.2ZM20.8 9.9L22.2 5.9L23 9.9H20.8ZM35.5 0.2H32.6C31.7 0.2 31.1 0.7 30.7 1.6L28.2 7.5L27.2 2.1C27 1 26.1 0.2 25 0.2H20.1L20 0.6C21 0.8 22 1.2 22.8 1.6L25.7 12.3L29.1 0.2H32.4L29.2 14.8H32.6L35.6 0.2H35.5Z" fill="#1A1F71" className="fill-slate-800 dark:fill-white"/>
+                            </svg>
+                            {/* Mastercard SVG */}
+                            <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="7.5" cy="7.5" r="7.5" fill="#EB001B"/>
+                              <circle cx="16.5" cy="7.5" r="7.5" fill="#F79E1B" fillOpacity="0.85"/>
+                            </svg>
                           </div>
                         </button>
 
@@ -1079,7 +1133,7 @@ export default function ClinicProfile() {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 text-sm"
+                        className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                       >
                         {isSubmitting ? (
                           <>
