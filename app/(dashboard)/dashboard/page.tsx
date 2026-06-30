@@ -7,7 +7,6 @@ import { motion } from 'framer-motion';
 import {
   Dog,
   Syringe,
-  AlertTriangle,
   Calendar,
   Plus,
   Activity,
@@ -21,7 +20,7 @@ const DEFAULT_SUMMARY = {
   dogs: 1,
   cats: 1,
   upcomingVaccines: 1,
-  healthAlerts: 0,
+  upcomingAppointments: 0,
   vetVisits: 3,
   lastVisit: '',
 };
@@ -72,7 +71,10 @@ export default function Dashboard() {
           return d && !Number.isNaN(d.getTime()) && d <= today;
         });
 
-        // we don't need upcomingAppointments here; remove to avoid unused-variable warnings
+        const upcomingAppointmentsList = (appointments || []).filter((a: any) => {
+          const d = a.appointment_date ? new Date(a.appointment_date) : a.created_at ? new Date(a.created_at) : null;
+          return d && !Number.isNaN(d.getTime()) && d > today;
+        });
 
         // Count vet visits as past appointments that were completed
         const completedPast = pastAppointments.filter((a: any) => (a.status || '').toLowerCase() === 'completed');
@@ -112,22 +114,12 @@ export default function Dashboard() {
           // ignore
         }
 
-        // Health alerts endpoint (optional)
-        let healthAlerts = DEFAULT_SUMMARY.healthAlerts;
-        try {
-          const alertsRes = await apiFetch(`/api/alerts?user_id=${encodeURIComponent(userId)}`);
-          if (alertsRes.ok) {
-            const ajson = await alertsRes.json();
-            healthAlerts = (ajson.alerts || []).length;
-          }
-        } catch (e) {}
-
         setStats({
           totalPets: petsData.length,
           dogs,
           cats,
           upcomingVaccines,
-          healthAlerts,
+          upcomingAppointments: upcomingAppointmentsList.length,
           vetVisits,
           lastVisit,
         });
@@ -245,7 +237,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Health Alerts */}
+        {/* Upcoming Appointments */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -253,14 +245,14 @@ export default function Dashboard() {
           className="p-6 bg-white border shadow-sm dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800"
         >
           <div className="flex items-start justify-between mb-4">
-            <div className={`p-3 rounded-xl ${'bg-green-50 dark:bg-green-500/10'} ${'text-green-600 dark:text-green-400'}`}>
-              <AlertTriangle className="w-6 h-6" />
+            <div className={`p-3 rounded-xl ${'bg-emerald-50 dark:bg-emerald-500/10'} ${'text-emerald-600 dark:text-emerald-400'}`}>
+              <Calendar className="w-6 h-6" />
             </div>
           </div>
           <div>
-            <h3 className="mb-1 text-3xl font-bold text-slate-900 dark:text-white">{stats.healthAlerts}</h3>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Health Alerts</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">All pets are healthy</p>
+            <h3 className="mb-1 text-3xl font-bold text-slate-900 dark:text-white">{stats.upcomingAppointments}</h3>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Upcoming Appointments</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Scheduled sessions</p>
           </div>
         </motion.div>
 
