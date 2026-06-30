@@ -38,8 +38,8 @@ if (typeof window !== 'undefined') {
 
     // Intercept requests to the FastAPI backend (either localhost or the production URL)
     if (
-      targetUrl.includes(backendUrl) || 
-      targetUrl.includes(chatbotUrl) || 
+      targetUrl.includes(backendUrl) ||
+      targetUrl.includes(chatbotUrl) ||
       targetUrl.startsWith('/api')
     ) {
       const token = localStorage.getItem('access_token');
@@ -132,11 +132,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('id, is_verified, clinic_logo_url')
           .eq('user_id', userId)
           .maybeSingle();
-        
+
         if (clinicError) {
           console.error('Error fetching clinic profile in AuthContext:', clinicError);
         }
-        
+
         // Fallback: If client-side query returns null, check via backend API to bypass RLS/cache issues
         if (!clinic && !clinicError) {
           console.log('Clinic profile not found via client-side query. Trying backend fallback...');
@@ -150,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Error in clinic profile backend fallback:', err);
           }
         }
-        
+
         hasProfile = !!clinic;
         if (clinic) {
           verificationStatus = clinic.is_verified ? 'approved' : 'pending';
@@ -164,18 +164,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('id, profile_image_url')
           .eq('user_id', userId)
           .maybeSingle();
-        
+
         if (ownerError) {
           console.error('Error fetching pet owner profile in AuthContext:', ownerError);
         }
-        
+
         if (!owner && !ownerError) {
           // Silently create the pet_owners record via the backend API
           console.log('Pet owner profile missing. Silently creating one via backend...');
           const nameParts = (dbUser.full_name || userEmail || 'Owner').trim().split(' ');
           const firstName = nameParts[0] || 'Owner';
           const lastName = nameParts.slice(1).join(' ') || '';
-          
+
           try {
             const data = await apiFetch('/api/auth/register/owner', {
               method: 'POST',
@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Error silently registering owner:', err);
           }
         }
-        
+
         hasProfile = !!owner;
         if (owner && owner.profile_image_url) {
           avatar = owner.profile_image_url;
@@ -218,18 +218,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleSession = async (currentSession: Session | null) => {
     setSession(currentSession);
-    
+
     if (currentSession?.user) {
       const userId = currentSession.user.id;
       const userEmail = currentSession.user.email || '';
-      
+
       localStorage.setItem('access_token', currentSession.access_token);
       localStorage.setItem('refresh_token', currentSession.refresh_token);
       localStorage.setItem('user_id', userId);
-      
+
       // Set cookie for middleware
       document.cookie = `sb-access-token=${currentSession.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax; Secure`;
-      
+
       const profileUser = await fetchProfileDetails(userId, userEmail);
       if (profileUser && profileUser.role) {
         setUser(profileUser);
@@ -264,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_id');
     localStorage.removeItem('user_role');
-    
+
     // Clear cookie for middleware
     document.cookie = 'sb-access-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure';
   };

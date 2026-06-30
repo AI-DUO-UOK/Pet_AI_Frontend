@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
+  X,
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
 import { useAuth } from '@/contexts/AuthContext';
@@ -663,8 +664,17 @@ function AIAssistantContent() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-xl max-h-[85vh] overflow-y-auto"
+            className="relative bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-xl max-h-[85vh] overflow-y-auto"
           >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowPetSelector(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">
@@ -792,9 +802,13 @@ function AIAssistantContent() {
           <Bot className="w-6 h-6 text-primary-600 dark:text-primary-400" />
           AI Health Assistant
           {session && selectedPet && (
-            <span className="text-lg ml-auto text-slate-500 dark:text-slate-400">
-              🐾 {selectedPet.name}
-            </span>
+            <button
+              onClick={() => setShowPetSelector(true)}
+              className="text-sm ml-auto px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors flex items-center gap-1.5 font-medium border border-slate-200 dark:border-slate-700"
+            >
+              <span>🐾 {selectedPet.name}</span>
+              <span className="text-xs text-slate-400">(Change)</span>
+            </button>
           )}
         </h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">
@@ -814,27 +828,39 @@ function AIAssistantContent() {
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
                   How can I help your pet today?
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
-                  Describe your pet's symptoms or ask any health-related questions
+                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                  {!session
+                    ? "Please select a pet to start a personalized chat session."
+                    : "Describe your pet's symptoms or ask any health-related questions"
+                  }
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 w-full max-w-2xl">
-                {(session?.animal === 'cat' 
-                  ? ['My cat is scratching her ears constantly', "Cat hasn't eaten in 24 hours", 'What are the vaccination requirements for kittens?', 'My cat has a rash on her skin']
-                  : ['My dog is limping on his front leg', "My dog hasn't eaten in 24 hours", "What's the vaccination schedule for a puppy?", 'My dog is scratching constantly']
-                ).map(
-                  (prompt, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleSend(prompt)}
-                      className="p-3 text-left text-sm bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
-                    >
-                      {prompt}
-                    </button>
-                  )
-                )}
-              </div>
+              {!session ? (
+                <button
+                  onClick={() => setShowPetSelector(true)}
+                  className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-primary-600/20 mx-auto block"
+                >
+                  Select a Pet
+                </button>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 w-full max-w-2xl">
+                  {(session?.animal === 'cat' 
+                    ? ['My cat is scratching her ears constantly', "Cat hasn't eaten in 24 hours", 'What are the vaccination requirements for kittens?', 'My cat has a rash on her skin']
+                    : ['My dog is limping on his front leg', "My dog hasn't eaten in 24 hours", "What's the vaccination schedule for a puppy?", 'My dog is scratching constantly']
+                  ).map(
+                    (prompt, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSend(prompt)}
+                        className="p-3 text-left text-sm bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
+                      >
+                        {prompt}
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : (
