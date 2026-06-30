@@ -1,11 +1,21 @@
 /* @ts-nocheck */
 'use client';
 import { apiFetch } from '@/lib/api';
+import {
+  VETERINARY_SERVICES,
+  getServicePrice,
+  PLATFORM_FEE,
+  TAX,
+  calculateTotal,
+  formatLKR,
+} from '@/lib/veterinary-services';
+import { createCheckoutSession } from '@/lib/payment';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   ArrowLeft,
+  ArrowRight,
   MapPin,
   Clock,
   Phone,
@@ -14,8 +24,9 @@ import {
   Users,
   Calendar,
   X,
-  Send,
   AlertCircle,
+  ShieldCheck,
+  CreditCard,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -156,11 +167,56 @@ export default function ClinicProfile() {
     serviceType: '',
     notes: '',
   });
+  // consultationFee is auto-derived from VETERINARY_SERVICES when serviceType changes
+  const [consultationFee, setConsultationFee] = useState<number>(0);
+  const [bookingStep, setBookingStep] = useState<'form' | 'summary' | 'payment' | 'loading'>('form');
+  const [selectedPayment, setSelectedPayment] = useState<'stripe' | 'gpay' | 'applepay'>('stripe');
 
   const getCurrentUserId = () => {
     const userId = user?.id || localStorage.getItem('user_id') || '';
     return UUID_PATTERN.test(userId) ? userId : '';
   };
+
+  const getTodayDateString = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const getOperatingHoursRange = (hoursStr: string) => {
+    const defaultRange = { min: '08:00', max: '18:00' };
+    if (!hoursStr) return defaultRange;
+
+    try {
+      const parts = hoursStr.split('-').map(p => p.trim());
+      if (parts.length !== 2) return defaultRange;
+
+      const convertTo24h = (timeStr: string) => {
+        // Handle formats like "09:00 AM", "9:00 AM", "18:00", etc.
+        const match = timeStr.match(/^(\d+):(\d+)\s*(AM|PM)?$/i);
+        if (!match) return null;
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2];
+        const ampm = match[3];
+
+        if (ampm) {
+          if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+          if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        }
+        return `${String(hours).padStart(2, '0')}:${minutes}`;
+      };
+
+      const min = convertTo24h(parts[0]) || defaultRange.min;
+      const max = convertTo24h(parts[1]) || defaultRange.max;
+      return { min, max };
+    } catch (e) {
+      return defaultRange;
+    }
+  };
+
+  const timeRange = getOperatingHoursRange(clinic?.operatingHours || '');
 
   const calculateAge = (dateOfBirth: string) => {
     if (!dateOfBirth) return '';
@@ -369,7 +425,7 @@ export default function ClinicProfile() {
     );
   }
 
-  const handleChannelSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const userId = getCurrentUserId();
 
@@ -378,36 +434,62 @@ export default function ClinicProfile() {
       return;
     }
 
+    // Advance to Appointment Summary step
+    setBookingStep('summary');
+  };
+
+  /** Helper: update service type AND auto-calculate the consultation fee */
+  const handleServiceChange = (serviceName: string) => {
+    const price = getServicePrice(serviceName);
+    setChannelForm((prev) => ({ ...prev, serviceType: serviceName }));
+    setConsultationFee(price);
+  };
+
+  /**
+   * handlePaymentSubmit — Called when user clicks "Pay Securely" on the payment step.
+   *
+   * Calls createCheckoutSession() which POSTs to:
+   *   POST /api/payments/create-checkout-session
+   *
+   * The backend returns { checkout_url } and createCheckoutSession() does:
+   *   window.location.href = checkout_url  → browser navigates to Stripe Hosted Checkout
+   *
+   * After payment, Stripe redirects to /payment/success?session_id=xxx
+   * Stripe webhook then fires → backend creates appointment + marks payment paid.
+   */
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsSubmitting(true);
+    setBookingStep('loading');
+
     try {
-      const response = await apiFetch('/api/appointments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pet_id: selectedPet.id,
-          clinic_id: clinic.id,
-          owner_id: userId,
-          appointment_date: channelForm.date,
-          appointment_time: channelForm.time,
-          reason: channelForm.serviceType,
-          notes: channelForm.notes || null,
-        }),
+      const userId = getCurrentUserId();
+      const total = calculateTotal(consultationFee);
+
+      // createCheckoutSession POSTs to /api/payments/create-checkout-session
+      // and internally calls window.location.href = checkout_url.
+      // The browser navigates away — code after this await is NOT reached on success.
+      await createCheckoutSession({
+        clinic_id: clinic?.id || '',
+        clinic_name: clinic?.clinicName || '',
+        pet_id: selectedPet?.id || '',
+        pet_name: selectedPet?.name || '',
+        owner_id: userId,
+        service_name: channelForm.serviceType,
+        consultation_fee: consultationFee,
+        platform_fee: PLATFORM_FEE,
+        tax: TAX,
+        total_amount: total,
+        appointment_date: channelForm.date,
+        appointment_time: channelForm.time,
+        notes: channelForm.notes || undefined,
+        doctor_name: clinic?.doctors?.[0] || 'Available Doctor',
       });
-
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.detail || data.error || 'Failed to book appointment');
-      }
-
-      const clinicDisplayName = clinic.clinicName || 'the clinic';
-      alert(`Successfully booked appointment for ${selectedPet.name} at ${clinicDisplayName}!`);
-      setShowChannelModal(false);
-      setSelectedPet(null);
-      setChannelForm({ date: '', time: '', serviceType: '', notes: '' });
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to book appointment');
+      // createCheckoutSession threw — backend returned an error or network failed.
+      console.error('Checkout session error:', error);
+      setBookingStep('form');
+      router.push('/payment/cancel');
     } finally {
       setIsSubmitting(false);
     }
@@ -637,195 +719,456 @@ export default function ClinicProfile() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-lg overflow-hidden bg-white border shadow-xl dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800"
             >
-              <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  Channel {clinic?.clinicName || ''}
-                </h2>
-                <button
-                  onClick={() => setShowChannelModal(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              {/* Header */}
+              {bookingStep !== 'loading' && (
+                <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {bookingStep === 'form'
+                      ? `Book at ${clinic?.clinicName || ''}`
+                      : bookingStep === 'summary'
+                      ? 'Appointment Summary'
+                      : 'Payment'}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowChannelModal(false);
+                      setBookingStep('form');
+                      setConsultationFee(0);
+                      setChannelForm({ date: '', time: '', serviceType: '', notes: '' });
+                    }}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
 
-              <form onSubmit={handleChannelSubmit} className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
-                {/* Select Pet */}
-                <div>
-                  <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Select Your Pet *
-                  </label>
-                  {selectedPet ? (
-                    <div className="flex items-center gap-3 p-4 border rounded-lg bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800">
-                      <img
-                        src={selectedPet.imageUrl}
-                        alt={selectedPet.name}
-                        className="object-cover w-12 h-12 rounded-lg"
-                      />
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-900 dark:text-white">
-                          {selectedPet.name}
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                          {selectedPet.breed} • {selectedPet.age}
+              {/* Step 1: Booking Form */}
+              {bookingStep === 'form' && (
+                <form onSubmit={handleFormSubmit} className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+                  {/* Select Pet */}
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Select Your Pet *
+                    </label>
+                    {selectedPet ? (
+                      <div className="flex items-center gap-3 p-4 border rounded-lg bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800">
+                        <img
+                          src={selectedPet.imageUrl}
+                          alt={selectedPet.name}
+                          className="object-cover w-12 h-12 rounded-lg"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-900 dark:text-white">
+                            {selectedPet.name}
+                          </p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            {selectedPet.breed} • {selectedPet.age}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPet(null)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {petsLoading && (
+                          <div className="col-span-2 py-6 text-center text-slate-500 dark:text-slate-400">
+                            Loading your pets...
+                          </div>
+                        )}
+
+                        {petsError && !petsLoading && (
+                          <div className="col-span-2 p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50 dark:bg-red-950/30 dark:border-red-800 dark:text-red-300">
+                            {petsError}
+                          </div>
+                        )}
+
+                        {!petsLoading && !petsError && availablePets.length === 0 && (
+                          <div className="col-span-2 p-3 text-sm border border-dashed rounded-lg border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                            No pets found. Add a pet first to book a channel.
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          {availablePets.map((pet) => (
+                            <button
+                              key={pet.id}
+                              type="button"
+                              onClick={() => setSelectedPet(pet)}
+                              className="p-3 text-left transition-colors border-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700"
+                            >
+                              <img
+                                src={pet.imageUrl}
+                                alt={pet.name}
+                                className="object-cover w-full h-20 mb-2 rounded"
+                              />
+                              <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                {pet.name}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {pet.breed}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {selectedPet && (
+                    <>
+                      {/* Service Type — driven by VETERINARY_SERVICES constant */}
+                      <div>
+                        <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Service Type *
+                        </label>
+                        <select
+                          value={channelForm.serviceType}
+                          onChange={(e) => handleServiceChange(e.target.value)}
+                          required
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        >
+                          <option value="">Select a service</option>
+                          {VETERINARY_SERVICES.map((svc) => (
+                            <option key={svc.name} value={svc.name}>
+                              {svc.name} — {formatLKR(svc.price)}
+                            </option>
+                          ))}
+                        </select>
+                        {/* Show auto-calculated fee inline */}
+                        {consultationFee > 0 && (
+                          <p className="mt-1.5 text-xs text-primary-600 dark:text-primary-400 font-medium">
+                            Consultation fee: {formatLKR(consultationFee)}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Date */}
+                      <div>
+                        <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Preferred Date *
+                        </label>
+                        <input
+                          type="date"
+                          value={channelForm.date}
+                          min={getTodayDateString()}
+                          onChange={(e) => setChannelForm({ ...channelForm, date: e.target.value })}
+                          required
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        />
+                      </div>
+
+                      {/* Time */}
+                      <div>
+                        <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Preferred Time *
+                        </label>
+                        <input
+                          type="time"
+                          value={channelForm.time}
+                          min={timeRange.min}
+                          max={timeRange.max}
+                          onChange={(e) => setChannelForm({ ...channelForm, time: e.target.value })}
+                          required
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                        />
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Clinic hours: {clinic?.operatingHours || '08:00 AM - 06:00 PM'}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPet(null)}
-                        className="text-slate-400 hover:text-slate-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {petsLoading && (
-                        <div className="col-span-2 py-6 text-center text-slate-500 dark:text-slate-400">
-                          Loading your pets...
-                        </div>
-                      )}
 
-                      {petsError && !petsLoading && (
-                        <div className="col-span-2 p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
-                          {petsError}
-                        </div>
-                      )}
+                      {/* Notes */}
+                      <div>
+                        <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Additional Notes
+                        </label>
+                        <textarea
+                          value={channelForm.notes}
+                          onChange={(e) =>
+                            setChannelForm({ ...channelForm, notes: e.target.value })
+                          }
+                          placeholder="Any symptoms or concerns to mention..."
+                          maxLength={300}
+                          rows={3}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white resize-none"
+                        />
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {channelForm.notes.length}/300
+                        </p>
+                      </div>
 
-                      {!petsLoading && !petsError && availablePets.length === 0 && (
-                        <div className="col-span-2 p-3 text-sm border border-dashed rounded-lg border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-                          No pets found. Add a pet first to book a channel.
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-3">
-                        {availablePets.map((pet) => (
-                        <button
-                          key={pet.id}
-                          type="button"
-                          onClick={() => setSelectedPet(pet)}
-                          className="p-3 text-left transition-colors border-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700"
-                        >
-                          <img
-                            src={pet.imageUrl}
-                            alt={pet.name}
-                            className="object-cover w-full h-20 mb-2 rounded"
-                          />
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                            {pet.name}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {pet.breed}
-                          </p>
-                        </button>
-                        ))}
+                      {/* Alert */}
+                      <div className="flex gap-3 p-3 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
+                        <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-blue-900 dark:text-blue-200">
+                          A confirmation will be sent to your email after submission.
+                        </p>
                       </div>
                     </>
                   )}
-                </div>
 
-                {selectedPet && (
-                  <>
-                    {/* Service Type */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Service Type *
-                      </label>
-                      <select
-                        value={channelForm.serviceType}
-                        onChange={(e) =>
-                          setChannelForm({ ...channelForm, serviceType: e.target.value })
-                        }
-                        required
-                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
+                  {/* Buttons */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowChannelModal(false)}
+                      className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        isSubmitting || !selectedPet || !channelForm.date || !channelForm.time || !channelForm.serviceType
+                      }
+                      className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      Continue <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* ── STEP 2: Appointment Summary ── */}
+              {bookingStep === 'summary' && selectedPet && (() => {
+                const total = calculateTotal(consultationFee);
+                // Format appointment date for display
+                const displayDate = channelForm.date
+                  ? new Date(channelForm.date).toLocaleDateString('en-GB', {
+                      day: 'numeric', month: 'long', year: 'numeric',
+                    })
+                  : channelForm.date;
+                // Format time to 12h
+                const displayTime = channelForm.time
+                  ? new Date(`1970-01-01T${channelForm.time}`).toLocaleTimeString('en-US', {
+                      hour: '2-digit', minute: '2-digit', hour12: true,
+                    })
+                  : channelForm.time;
+
+                return (
+                  <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+                    {/* Section title */}
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">
+                      Appointment Summary
+                    </p>
+
+                    {/* Booking details */}
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      {[
+                        { label: 'Clinic', value: clinic?.clinicName || '—' },
+                        { label: 'Doctor', value: clinic?.doctors?.[0] || 'Available Doctor' },
+                        { label: 'Pet', value: selectedPet.name },
+                        { label: 'Service', value: channelForm.serviceType },
+                        { label: 'Date', value: displayDate },
+                        { label: 'Time', value: displayTime },
+                      ].map(({ label, value }, i, arr) => (
+                        <div
+                          key={label}
+                          className={`flex justify-between items-center px-4 py-2.5 text-sm ${
+                            i % 2 === 0
+                              ? 'bg-slate-50 dark:bg-slate-800/40'
+                              : 'bg-white dark:bg-slate-900'
+                          } ${
+                            i < arr.length - 1
+                              ? 'border-b border-slate-100 dark:border-slate-700/50'
+                              : ''
+                          }`}
+                        >
+                          <span className="text-slate-500 dark:text-slate-400">{label}</span>
+                          <span className="font-medium text-slate-800 dark:text-slate-200 text-right max-w-[55%]">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Fee breakdown */}
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/50 flex justify-between text-sm">
+                        <span className="text-slate-500 dark:text-slate-400">Consultation Fee</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{formatLKR(consultationFee)}</span>
+                      </div>
+                      <div className="px-4 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700/50 flex justify-between text-sm">
+                        <span className="text-slate-500 dark:text-slate-400">Platform Fee</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{formatLKR(PLATFORM_FEE)}</span>
+                      </div>
+                      <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/50 flex justify-between text-sm">
+                        <span className="text-slate-500 dark:text-slate-400">Tax</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{formatLKR(TAX)}</span>
+                      </div>
+                      <div className="px-4 py-3 bg-primary-50 dark:bg-primary-950/20 flex justify-between">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">Total</span>
+                        <span className="text-base font-extrabold text-primary-600 dark:text-primary-400">{formatLKR(total)}</span>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setBookingStep('form')}
+                        className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm"
                       >
-                        <option value="">Select a service</option>
-                        {(clinic.services || []).map((service) => (
-                          <option key={service} value={service}>
-                            {service}
-                          </option>
-                        ))}
-                      </select>
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingStep('payment')}
+                        className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-all shadow-md shadow-primary-600/10 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        Pay Securely · {formatLKR(total)}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── STEP 3: Payment Method Selection ── */}
+              {bookingStep === 'payment' && selectedPet && (() => {
+                const total = calculateTotal(consultationFee);
+                return (
+                  <form onSubmit={handlePaymentSubmit} className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">
+                      Payment Summary
+                    </p>
+
+                    {/* Compact fee recap */}
+                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2">
+                      <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                        <span>{channelForm.serviceType}</span>
+                        <span>{formatLKR(consultationFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                        <span>Platform Fee</span>
+                        <span>{formatLKR(PLATFORM_FEE)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                        <span>Tax</span>
+                        <span>{formatLKR(TAX)}</span>
+                      </div>
+                      <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+                      <div className="flex justify-between font-bold text-slate-900 dark:text-white">
+                        <span className="text-sm">Total</span>
+                        <span className="text-base text-primary-600 dark:text-primary-400">{formatLKR(total)}</span>
+                      </div>
                     </div>
 
-                    {/* Date */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Preferred Date *
+                    {/* Payment method selector */}
+                    <div className="space-y-3">
+                      <label className="block text-sm font-semibold text-slate-900 dark:text-white">
+                        Select Payment Method
                       </label>
-                      <input
-                        type="date"
-                        value={channelForm.date}
-                        onChange={(e) => setChannelForm({ ...channelForm, date: e.target.value })}
-                        required
-                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-                      />
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPayment('stripe')}
+                          className={`flex flex-col items-center justify-center p-3 border-2 rounded-xl transition-all ${
+                            selectedPayment === 'stripe'
+                              ? 'border-primary-500 bg-primary-50/20 dark:bg-primary-950/15'
+                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <CreditCard className="w-4 h-4 mb-1 text-slate-700 dark:text-slate-300" />
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Card</span>
+                          <div className="flex gap-1.5 mt-1.5 items-center">
+                            {/* Visa SVG */}
+                            <svg className="h-2.5 w-auto" viewBox="0 0 36 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M4.5 10H1L3.8 0H7.3L4.5 10ZM14.3 2.7C13.5 2.4 12.4 2.1 11.2 2.1C7.9 2.1 5.6 3.8 5.6 6.2C5.6 8 7.3 9 8.6 9.6C9.9 10.2 10.3 10.6 10.3 11.1C10.3 11.9 9.3 12.3 8.4 12.3 7 12.3 6.2 11.9 5.1 11.4L4.6 11.1L4.1 14.1C5 14.5 6.6 14.9 8.2 14.9C11.8 14.9 14.1 13.2 14.1 10.8C14.1 9 13 8 11.1 7.1C9.8 6.5 9.3 6.1 9.3 5.6C9.3 4.9 10.3 4.4 11.4 4.4C12.5 4.4 13.3 4.7 13.9 4.9L14.3 5.1L14.8 2.2V2.7ZM26.6 0.2H23.5C22.6 0.2 21.8 0.7 21.4 1.6L15.7 14.8H19.1L19.8 12.8H23.9L24.3 14.8H27.3L26.6 0.2ZM20.8 9.9L22.2 5.9L23 9.9H20.8ZM35.5 0.2H32.6C31.7 0.2 31.1 0.7 30.7 1.6L28.2 7.5L27.2 2.1C27 1 26.1 0.2 25 0.2H20.1L20 0.6C21 0.8 22 1.2 22.8 1.6L25.7 12.3L29.1 0.2H32.4L29.2 14.8H32.6L35.6 0.2H35.5Z" fill="#1A1F71" className="fill-slate-800 dark:fill-white"/>
+                            </svg>
+                            {/* Mastercard SVG */}
+                            <svg className="h-3 w-auto" viewBox="0 0 24 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="7.5" cy="7.5" r="7.5" fill="#EB001B"/>
+                              <circle cx="16.5" cy="7.5" r="7.5" fill="#F79E1B" fillOpacity="0.85"/>
+                            </svg>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPayment('gpay')}
+                          className={`flex flex-col items-center justify-center p-3 border-2 rounded-xl transition-all ${
+                            selectedPayment === 'gpay'
+                              ? 'border-primary-500 bg-primary-50/20 dark:bg-primary-950/15'
+                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="text-lg font-black">G</span>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Google Pay</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPayment('applepay')}
+                          className={`flex flex-col items-center justify-center p-3 border-2 rounded-xl transition-all ${
+                            selectedPayment === 'applepay'
+                              ? 'border-primary-500 bg-primary-50/20 dark:bg-primary-950/15'
+                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="text-lg"></span>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Apple Pay</span>
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Time */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Preferred Time *
-                      </label>
-                      <input
-                        type="time"
-                        value={channelForm.time}
-                        onChange={(e) => setChannelForm({ ...channelForm, time: e.target.value })}
-                        required
-                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-                      />
+                    {/* Security badge */}
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 justify-center">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                      <span>Secured by Stripe • 256-bit SSL encryption</span>
                     </div>
 
-                    {/* Notes */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Additional Notes
-                      </label>
-                      <textarea
-                        value={channelForm.notes}
-                        onChange={(e) =>
-                          setChannelForm({ ...channelForm, notes: e.target.value })
-                        }
-                        placeholder="Any symptoms or concerns to mention..."
-                        maxLength={300}
-                        rows={3}
-                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white resize-none"
-                      />
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {channelForm.notes.length}/300
-                      </p>
+                    {/* Action buttons */}
+                    <div className="flex gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setBookingStep('summary')}
+                        className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Preparing...
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4" />
+                            Pay Securely · {formatLKR(total)}
+                          </>
+                        )}
+                      </button>
                     </div>
+                  </form>
+                );
+              })()}
 
-                    {/* Alert */}
-                    <div className="flex gap-3 p-3 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
-                      <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-blue-900 dark:text-blue-200">
-                        A confirmation will be sent to your email after submission.
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {/* Buttons */}
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowChannelModal(false)}
-                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={
-                      isSubmitting || !selectedPet || !channelForm.date || !channelForm.time || !channelForm.serviceType
-                    }
-                    className="flex-1 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                  >
-                      <Send className="w-4 h-4" /> {isSubmitting ? 'Booking...' : 'Book Appointment'}
-                  </button>
+              {/* Step 3: Stripe Connecting/Loading Overlay */}
+              {bookingStep === 'loading' && (
+                <div className="p-12 flex flex-col items-center justify-center space-y-6 text-center">
+                  <div className="relative flex items-center justify-center">
+                    {/* Spinner */}
+                    <div className="w-20 h-20 border-4 border-slate-100 border-t-primary-500 rounded-full animate-spin" />
+                    {/* Inner secure lock or brand indicator */}
+                    <div className="absolute text-primary-500 font-extrabold text-sm">Stripe</div>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Connecting to Stripe...</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">
+                      We are securely transferring you to Stripe Checkout to finalize your payment.
+                    </p>
+                  </div>
                 </div>
-              </form>
+              )}
             </motion.div>
           </div>
         )}
