@@ -570,26 +570,6 @@ function AIAssistantContent() {
           id: Date.now().toString(),
           role: 'ai',
           content: response.explanation,
-          isAnalysis: true,
-          analysisData: {
-            condition: response.disease_class,
-            confidence,
-            actions: [
-              '🏥 Schedule a veterinary appointment for professional diagnosis',
-              '📸 Monitor your pet for any changes in symptoms',
-              '📝 Keep detailed notes about when symptoms started',
-            ],
-            dos: [
-              '✅ Take clear photos for your vet',
-              '✅ Track any behavior changes',
-              '✅ Keep your pet comfortable',
-            ],
-            donts: [
-              '❌ Do NOT self-diagnose or delay professional care',
-              '❌ Do NOT apply unproven treatments',
-              '❌ Do NOT delay seeking professional advice',
-            ],
-          },
         };
 
         setMessages((prev) => [...prev, analysisMsg]);
@@ -962,13 +942,6 @@ function AIAssistantContent() {
                           {streamingMessageId === msg.id && msg.content && (
                             <span className="cursor-blink text-base">▌</span>
                           )}
-                          
-                          {/* RAG Indicator */}
-                          {msg.used_rag && (
-                            <div className="mt-3 pt-3 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                              <span>🔍</span> Information from knowledge base
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -983,72 +956,7 @@ function AIAssistantContent() {
                         </div>
                       )}
 
-                      {msg.isAnalysis && msg.analysisData && (
-                        <div className="mt-4 space-y-3 pt-3 border-t border-current border-opacity-20">
-                          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-semibold text-sm flex items-center gap-2">
-                                <span>🔬</span> {msg.analysisData.condition}
-                              </h4>
-                              <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-1 rounded">
-                                {msg.analysisData.confidence}% confidence
-                              </span>
-                            </div>
 
-                            {/* Recommended Actions */}
-                            <div className="mt-3 space-y-2">
-                              <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                                <span>🎯</span> Recommended Actions
-                              </h5>
-                              {msg.analysisData.actions.map((action, idx) => (
-                                <div key={idx} className="flex items-start gap-2 text-xs">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                                  <span>{action}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* DO's */}
-                            <div className="mt-3 space-y-2">
-                              <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                                <span>✅</span> DO's
-                              </h5>
-                              {msg.analysisData.dos.map((item, idx) => (
-                                <div key={idx} className="flex items-start gap-2 text-xs">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                                  <span>{item}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* DON'Ts */}
-                            <div className="mt-3 space-y-2">
-                              <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                                <span>❌</span> DON'Ts
-                              </h5>
-                              {msg.analysisData.donts.map((item, idx) => (
-                                <div key={idx} className="flex items-start gap-2 text-xs">
-                                  <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-                                  <span>{item}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3 flex items-start gap-2 text-xs">
-                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                            <span>
-                              ⚠️ This is an AI analysis. For professional diagnosis, please consult a veterinarian.
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {msg.used_rag && msg.role === 'ai' && !msg.isAnalysis && (
-                        <div className="mt-2 text-xs opacity-70 flex items-center gap-1">
-                          <span>🔍</span> Knowledge base used
-                        </div>
-                      )}
                     </div>
                   </motion.div>
                 );
