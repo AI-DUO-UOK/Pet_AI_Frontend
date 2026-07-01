@@ -243,7 +243,8 @@ export const useChatbotAPI = () => {
   const uploadDocument = useCallback(
     async (
       sessionId: string,
-      file: File
+      file: File,
+      prompt?: string
     ): Promise<DocumentAnalysisResponse | null> => {
       setLoading(true);
       setError(null);
@@ -252,6 +253,9 @@ export const useChatbotAPI = () => {
         const formData = new FormData();
         formData.append('session_id', sessionId);
         formData.append('file', file);
+        if (prompt) {
+          formData.append('prompt', prompt);
+        }
 
         const data = await apiFetch<DocumentAnalysisResponse>('/api/chat/upload-document', {
           method: 'POST',

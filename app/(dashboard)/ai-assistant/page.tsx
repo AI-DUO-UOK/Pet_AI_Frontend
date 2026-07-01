@@ -39,6 +39,11 @@ interface Message {
     src: string;
     name: string;
   };
+  document?: {
+    src: string;
+    name: string;
+    type?: string;
+  };
   isAnalysis?: boolean;
   analysisData?: {
     condition: string;
@@ -563,9 +568,6 @@ function AIAssistantContent() {
       setIsTyping(false);
 
       if (response) {
-        // Parse confidence to number
-        const confidence = Math.round(response.confidence * 100);
-
         const analysisMsg: Message = {
           id: Date.now().toString(),
           role: 'ai',
@@ -574,9 +576,10 @@ function AIAssistantContent() {
 
         setMessages((prev) => [...prev, analysisMsg]);
       }
-
+    } else if (selectedDocument) {
+      await handleSendDocument(text);
     } else {
-      // No image, use regular handleSend
+      // No image or document, use regular handleSend
       handleSend(text);
     }
   };
@@ -603,22 +606,31 @@ function AIAssistantContent() {
     setDocumentInputKey((prev) => prev + 1);
   };
 
-  const handleSendDocument = async () => {
+  const handleSendDocument = async (text: string = input) => {
     if (!session || !selectedDocument || isTyping || apiLoading) return;
 
+    const promptText = text.trim();
     const newUserMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: '📄 Uploaded a medical document for analysis',
+      content: promptText || '📄 Uploaded a medical document for analysis',
+      document: documentPreview
+        ? {
+            src: documentPreview,
+            name: selectedDocument.name,
+            type: selectedDocument.type,
+          }
+        : undefined,
     };
 
     setMessages((prev) => [...prev, newUserMsg]);
+    setInput('');
     setSelectedDocument(null);
     setDocumentPreview(null);
     setDocumentInputKey((prev) => prev + 1);
     setIsTyping(true);
 
-    const response = await uploadDocument(session.session_id, selectedDocument);
+    const response = await uploadDocument(session.session_id, selectedDocument, promptText);
 
     setIsTyping(false);
 
@@ -952,6 +964,29 @@ function AIAssistantContent() {
                               className="max-h-64 w-auto max-w-full rounded-xl object-contain"
                             />
                           )}
+                          {msg.document && (
+                            <div className="mb-2 p-2 bg-slate-900/10 dark:bg-white/10 rounded-lg flex items-center gap-3 border border-slate-900/20 dark:border-white/20 max-w-sm text-left">
+                              {msg.document.src ? (
+                                <img
+                                  src={msg.document.src}
+                                  alt={msg.document.name}
+                                  className="w-10 h-10 object-cover rounded border border-slate-900/30 dark:border-white/30 flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded bg-white/20 flex items-center justify-center text-white flex-shrink-0">
+                                  <FileText className="w-6 h-6" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold text-white dark:text-slate-100 truncate">
+                                  {msg.document.name}
+                                </p>
+                                <p className="text-[10px] text-primary-100 dark:text-slate-400">
+                                  Medical Document
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                         </div>
                       )}
@@ -1047,13 +1082,9 @@ function AIAssistantContent() {
                   {selectedDocument?.name}
                 </p>
               </div>
-              <button
-                onClick={handleSendDocument}
-                disabled={!session || isTyping || apiLoading}
-                className="self-start px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs rounded-lg font-medium transition-colors"
-              >
-                Analyze Document
-              </button>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ready to analyze when you send
+              </p>
             </div>
           </motion.div>
         )}
@@ -1106,10 +1137,16 @@ function AIAssistantContent() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    if (input.trim() || selectedImage) handleSendWithImage();
+                    if (input.trim() || selectedImage || selectedDocument) handleSendWithImage();
                   }
                 }}
-                placeholder={selectedImage ? "Add a prompt for the image..." : "Ask anything about your pet's health or describe a concern..."}
+                placeholder={
+                  selectedImage 
+                    ? "Add a prompt for the image..." 
+                    : selectedDocument 
+                    ? "Add a prompt for the document..." 
+                    : "Ask anything about your pet's health or describe a concern..."
+                }
                 disabled={!session || isTyping || apiLoading}
                 rows={1}
                 className="w-full px-4 py-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50 disabled:cursor-not-allowed resize-none overflow-y-auto min-h-[44px] max-h-[132px]"
@@ -1126,7 +1163,7 @@ function AIAssistantContent() {
           {/* Send Button */}
           <button
             onClick={() => handleSendWithImage()}
-            disabled={(!input.trim() && !selectedImage) || !session || isTyping || apiLoading}
+            disabled={(!input.trim() && !selectedImage && !selectedDocument) || !session || isTyping || apiLoading}
             className="h-[44px] px-5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center justify-center flex-shrink-0 shadow-sm shadow-primary-600/20"
           >
             <Send className="w-4 h-4" />
