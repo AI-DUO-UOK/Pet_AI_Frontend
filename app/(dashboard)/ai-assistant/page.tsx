@@ -794,7 +794,7 @@ function AIAssistantContent() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Bot className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-            AI Health Assistant
+            AI Pet Health Assistant
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
             Get trusted AI guidance for your pet's health, care, nutrition, vaccinations and more.
@@ -1076,7 +1076,7 @@ function AIAssistantContent() {
             <div className="flex-1 flex flex-col justify-between">
               <div>
                 <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-1">
-                  📄 Medical Document Selected
+                  📄 Document Selected
                 </p>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   {selectedDocument?.name}
