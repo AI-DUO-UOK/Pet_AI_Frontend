@@ -116,7 +116,7 @@ export default function LoginPage() {
           </div>
 
           <h2 className="mb-2 text-2xl font-bold text-center text-slate-900 dark:text-white">
-            Welcome back to Dr. Paw
+            Welcome back to PetPulse
           </h2>
           <p className="mb-8 text-center text-slate-500 dark:text-slate-400">
             Enter your details to access your account.
