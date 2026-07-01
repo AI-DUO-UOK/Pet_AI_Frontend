@@ -14,6 +14,7 @@ import {
   XCircle,
   FileText,
   X,
+  PawPrint,
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
 import { useAuth } from '@/contexts/AuthContext';
@@ -653,7 +654,7 @@ function AIAssistantContent() {
   };
 
   return (
-    <div className="space-y-6 flex flex-col h-[calc(100vh-200px)]">
+    <div className="space-y-6 flex flex-col h-[calc(100vh-110px)] sm:h-[calc(100vh-125px)] lg:h-[calc(100vh-140px)]">
       {/* Pet Selector Modal */}
       {showPetSelector && (
         <motion.div
@@ -835,9 +836,9 @@ function AIAssistantContent() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-full border border-amber-200/60 dark:border-amber-700/40 shadow-sm">
-                    <span className="text-xl" style={{ filter: 'none' }}>🐾</span>
-                    <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-50 to-primary-100/50 dark:from-primary-900/20 dark:to-primary-800/10 rounded-full border border-primary-200/60 dark:border-primary-800/40 shadow-sm">
+                    <PawPrint className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                    <span className="text-sm font-semibold text-primary-800 dark:text-primary-300">
                       Welcome back{selectedPet ? `, ${selectedPet.name}` : ''}!
                     </span>
                   </div>
@@ -882,121 +883,161 @@ function AIAssistantContent() {
         ) : (
           <>
             <div className="space-y-4 flex-1">
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`${
-                      msg.role === 'user'
-                        ? 'max-w-lg bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3'
-                        : 'w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl rounded-tl-sm px-6 py-4'
-                    }`}
-                  >
-                    {msg.role === 'ai' ? (
-                      <div className="w-full">
-                        <ReactMarkdown 
-                          components={MarkdownComponents}
-                          remarkPlugins={[remarkGfm]}
-                        >
-                          {msg.content || (streamingMessageId === msg.id ? '▌' : '')}
-                        </ReactMarkdown>
-                        {streamingMessageId === msg.id && msg.content && (
-                          <span className="cursor-blink text-base">▌</span>
-                        )}
-                        
-                        {/* RAG Indicator */}
-                        {msg.used_rag && (
-                          <div className="mt-3 pt-3 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <span>🔍</span> Information from knowledge base
+              {messages.map((msg, index) => {
+                const isWelcome = msg.role === 'ai' && index === 0;
+                
+                if (isWelcome) {
+                  const cleanContent = msg.content.replace(/^🐾\s*/, '').replace(/^✅\s*/, '');
+                  const parts = cleanContent.split('\n\n');
+                  const hasMultipleParts = parts.length > 1;
+                  const title = hasMultipleParts ? parts[0] : 'Welcome back!';
+                  const description = hasMultipleParts ? parts.slice(1).join('\n\n') : parts[0];
+                  
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start w-full"
+                    >
+                      <div className="w-full bg-gradient-to-br from-primary-50/50 to-primary-100/30 dark:from-slate-800/50 dark:to-slate-900/50 border border-primary-100/50 dark:border-slate-700/50 rounded-2xl p-6 shadow-sm flex items-start gap-4 transition-all hover:shadow-md">
+                        <div className="p-3 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full flex-shrink-0">
+                          <PawPrint className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div className="space-y-2 flex-1">
+                          <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                            {title}
+                          </h3>
+                          <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            <ReactMarkdown 
+                              components={MarkdownComponents}
+                              remarkPlugins={[remarkGfm]}
+                            >
+                              {description}
+                            </ReactMarkdown>
                           </div>
-                        )}
+                        </div>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {msg.image && (
-                          <img
-                            src={msg.image.src}
-                            alt={msg.image.name}
-                            className="max-h-64 w-auto max-w-full rounded-xl object-contain"
-                          />
-                        )}
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      </div>
-                    )}
+                    </motion.div>
+                  );
+                }
 
-                    {msg.isAnalysis && msg.analysisData && (
-                      <div className="mt-4 space-y-3 pt-3 border-t border-current border-opacity-20">
-                        <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3">
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-sm flex items-center gap-2">
-                              <span>🔬</span> {msg.analysisData.condition}
-                            </h4>
-                            <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-1 rounded">
-                              {msg.analysisData.confidence}% confidence
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`${
+                        msg.role === 'user'
+                          ? 'max-w-lg bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3'
+                          : 'w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl rounded-tl-sm px-6 py-4'
+                      }`}
+                    >
+                      {msg.role === 'ai' ? (
+                        <div className="w-full">
+                          <ReactMarkdown 
+                            components={MarkdownComponents}
+                            remarkPlugins={[remarkGfm]}
+                          >
+                            {msg.content || (streamingMessageId === msg.id ? '▌' : '')}
+                          </ReactMarkdown>
+                          {streamingMessageId === msg.id && msg.content && (
+                            <span className="cursor-blink text-base">▌</span>
+                          )}
+                          
+                          {/* RAG Indicator */}
+                          {msg.used_rag && (
+                            <div className="mt-3 pt-3 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                              <span>🔍</span> Information from knowledge base
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {msg.image && (
+                            <img
+                              src={msg.image.src}
+                              alt={msg.image.name}
+                              className="max-h-64 w-auto max-w-full rounded-xl object-contain"
+                            />
+                          )}
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        </div>
+                      )}
+
+                      {msg.isAnalysis && msg.analysisData && (
+                        <div className="mt-4 space-y-3 pt-3 border-t border-current border-opacity-20">
+                          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3">
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-semibold text-sm flex items-center gap-2">
+                                <span>🔬</span> {msg.analysisData.condition}
+                              </h4>
+                              <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-1 rounded">
+                                {msg.analysisData.confidence}% confidence
+                              </span>
+                            </div>
+
+                            {/* Recommended Actions */}
+                            <div className="mt-3 space-y-2">
+                              <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
+                                <span>🎯</span> Recommended Actions
+                              </h5>
+                              {msg.analysisData.actions.map((action, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                                  <span>{action}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* DO's */}
+                            <div className="mt-3 space-y-2">
+                              <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
+                                <span>✅</span> DO's
+                              </h5>
+                              {msg.analysisData.dos.map((item, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                                  <span>{item}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* DON'Ts */}
+                            <div className="mt-3 space-y-2">
+                              <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
+                                <span>❌</span> DON'Ts
+                              </h5>
+                              {msg.analysisData.donts.map((item, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs">
+                                  <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                                  <span>{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3 flex items-start gap-2 text-xs">
+                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                            <span>
+                              ⚠️ This is an AI analysis. For professional diagnosis, please consult a veterinarian.
                             </span>
                           </div>
-
-                          {/* Recommended Actions */}
-                          <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                              <span>🎯</span> Recommended Actions
-                            </h5>
-                            {msg.analysisData.actions.map((action, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-xs">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                                <span>{action}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* DO's */}
-                          <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                              <span>✅</span> DO's
-                            </h5>
-                            {msg.analysisData.dos.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-xs">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* DON'Ts */}
-                          <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                              <span>❌</span> DON'Ts
-                            </h5>
-                            {msg.analysisData.donts.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-xs">
-                                <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
                         </div>
+                      )}
 
-                        <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3 flex items-start gap-2 text-xs">
-                          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                          <span>
-                            ⚠️ This is an AI analysis. For professional diagnosis, please consult a veterinarian.
-                          </span>
+                      {msg.used_rag && msg.role === 'ai' && !msg.isAnalysis && (
+                        <div className="mt-2 text-xs opacity-70 flex items-center gap-1">
+                          <span>🔍</span> Knowledge base used
                         </div>
-                      </div>
-                    )}
-
-                    {msg.used_rag && msg.role === 'ai' && !msg.isAnalysis && (
-                      <div className="mt-2 text-xs opacity-70 flex items-center gap-1">
-                        <span>🔍</span> Knowledge base used
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
 
             {isTyping && (
