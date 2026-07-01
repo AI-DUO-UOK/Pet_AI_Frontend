@@ -798,23 +798,38 @@ function AIAssistantContent() {
       )}
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Bot className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-          AI Health Assistant
-          {session && selectedPet && (
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Bot className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            AI Health Assistant
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            Get trusted AI guidance for your pet's health, care, nutrition, vaccinations and more.
+          </p>
+        </div>
+        
+        {session && selectedPet && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-semibold border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden pr-3">
+              <img
+                src={getPetImageUrl(selectedPet)}
+                alt={selectedPet.name}
+                className="w-12 h-12 object-cover flex-shrink-0"
+              />
+              <div className="flex flex-col py-1">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold leading-none mb-0.5">Active Pet</span>
+                <span className="text-sm font-bold text-slate-800 dark:text-white leading-tight">{selectedPet.name}</span>
+              </div>
+            </div>
             <button
               onClick={() => setShowPetSelector(true)}
-              className="text-sm ml-auto px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors flex items-center gap-1.5 font-medium border border-slate-200 dark:border-slate-700"
+              className="text-xs px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-all font-semibold shadow-sm hover:shadow-md h-fit"
             >
-              <span>🐾 {selectedPet.name}</span>
-              <span className="text-xs text-slate-400">(Change)</span>
+              Change
             </button>
-          )}
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Get trusted AI guidance for your pet's health, care, nutrition, vaccinations and more.
-        </p>
+          </div>
+        )}
       </div>
 
       {/* Chat Area */}
