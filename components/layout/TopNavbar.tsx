@@ -42,7 +42,7 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
           <Search className="w-4 h-4 absolute left-3 text-slate-400" />
           <input
             type="text"
-            placeholder="Search pets, vets, or records..."
+            placeholder="Search pets, vets or records..."
             className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary-900/30 rounded-lg text-sm transition-all outline-none"
           />
         </div>

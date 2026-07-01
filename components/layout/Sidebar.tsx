@@ -62,7 +62,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         <div className="flex items-center justify-between h-16 px-6 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2 text-xl font-bold text-primary-600 dark:text-primary-400">
             <Dog className="w-6 h-6" />
-            <span>Dr. Paw</span>
+            <span>PetPulse</span>
           </div>
           <button
             onClick={handleClose}
