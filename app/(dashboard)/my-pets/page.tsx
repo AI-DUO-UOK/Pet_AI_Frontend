@@ -6,6 +6,7 @@ import { Plus, X, Upload, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { PetCard } from '@/components/ui/PetCard';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 type PetRecord = {
   id: string;
@@ -559,16 +560,11 @@ export default function MyPets() {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Breed *
                         </label>
-                        <select
-                          name="breed"
+                        <SearchableSelect
+                          options={petForm.type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS}
                           value={petForm.breed}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-                        >
-                          {(petForm.type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS).map((b) => (
-                            <option key={b} value={b}>{b}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setPetForm(prev => ({ ...prev, breed: val }))}
+                        />
                       </div>
 
                       <div className="col-span-2">
