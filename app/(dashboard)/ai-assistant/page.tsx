@@ -812,7 +812,7 @@ function AIAssistantContent() {
           )}
         </h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Describe your pet's symptoms for instant AI-powered insights
+          Get trusted AI guidance for your pet's health, care, nutrition, vaccinations and more.
         </p>
       </div>
 
@@ -820,21 +820,37 @@ function AIAssistantContent() {
       <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 overflow-y-auto shadow-sm flex flex-col">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="text-center space-y-6">
-              <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto">
-                <Sparkles className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+            <div className="text-center space-y-6 max-w-lg mx-auto">
+              <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-50 dark:from-primary-900/40 dark:to-primary-800/20 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-primary-200/50 dark:shadow-primary-900/30">
+                <Sparkles className="w-9 h-9 text-primary-600 dark:text-primary-400" />
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                  How can I help your pet today?
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                  {!session
-                    ? "Please select a pet to start a personalized chat session."
-                    : "Describe your pet's symptoms or ask any health-related questions"
-                  }
-                </p>
-              </div>
+              {!session ? (
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                    Welcome to AI Pet Health Assistant
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Please select a pet to start a personalized chat session.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-full border border-amber-200/60 dark:border-amber-700/40 shadow-sm">
+                    <span className="text-xl" style={{ filter: 'none' }}>🐾</span>
+                    <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                      Welcome back{selectedPet ? `, ${selectedPet.name}` : ''}!
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">
+                      How can I help your pet today?
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Describe your pet's symptoms or ask any health-related questions
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {!session ? (
                 <button
@@ -1094,9 +1110,9 @@ function AIAssistantContent() {
               onClick={() => imageInputRef.current?.click()}
               disabled={!session || isTyping || apiLoading || selectedImage !== null || selectedDocument !== null}
               title="Upload Image"
-              className="px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors flex items-center justify-center"
+              className="h-[44px] min-w-[44px] px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors flex items-center justify-center flex-shrink-0"
             >
-              <span className="text-xl">+</span>
+              <span className="text-xl leading-none">+</span>
             </button>
 
             {/* Upload Document Button */}
@@ -1112,29 +1128,42 @@ function AIAssistantContent() {
               onClick={() => documentInputRef.current?.click()}
               disabled={!session || isTyping || apiLoading || selectedImage !== null || selectedDocument !== null}
               title="Upload Medical Document"
-              className="px-4 py-3 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 dark:text-blue-400 rounded-xl font-medium transition-colors flex items-center justify-center gap-1.5 text-sm"
+              className="h-[44px] px-3 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 dark:text-blue-400 rounded-xl font-medium transition-colors flex items-center justify-center gap-1.5 text-sm flex-shrink-0"
             >
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Document</span>
             </button>
 
-            {/* Text Input */}
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendWithImage()}
-              placeholder={selectedImage ? "Add a prompt for the image..." : "Describe your pet's symptoms..."}
-              disabled={!session || isTyping || apiLoading}
-              className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            />
+            {/* Text Input - auto-growing textarea */}
+            <div className="flex-1 self-stretch flex flex-col justify-end min-h-[44px]">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (input.trim() || selectedImage) handleSendWithImage();
+                  }
+                }}
+                placeholder={selectedImage ? "Add a prompt for the image..." : "Ask anything about your pet's health or describe a concern..."}
+                disabled={!session || isTyping || apiLoading}
+                rows={1}
+                className="w-full px-4 py-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50 disabled:cursor-not-allowed resize-none overflow-y-auto min-h-[44px] max-h-[132px]"
+                style={{ height: 'auto' }}
+                onInput={(e) => {
+                  const target = e.currentTarget;
+                  target.style.height = 'auto';
+                  target.style.height = Math.min(target.scrollHeight, 132) + 'px';
+                }}
+              />
+            </div>
           </div>
 
           {/* Send Button */}
           <button
             onClick={() => handleSendWithImage()}
             disabled={(!input.trim() && !selectedImage) || !session || isTyping || apiLoading}
-            className="px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center gap-2 shadow-sm shadow-primary-600/20"
+            className="h-[44px] px-5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center justify-center flex-shrink-0 shadow-sm shadow-primary-600/20"
           >
             <Send className="w-4 h-4" />
           </button>

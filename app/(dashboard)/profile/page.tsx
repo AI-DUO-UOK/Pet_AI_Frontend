@@ -579,7 +579,7 @@ export default function PetOwnerProfilePage() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Email Address (Read-only)
+                    Email Address
                   </label>
                   <div className="relative">
                     <Mail className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
