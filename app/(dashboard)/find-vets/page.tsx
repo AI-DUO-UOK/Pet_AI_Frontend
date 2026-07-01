@@ -414,31 +414,31 @@ export default function FindVets() {
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
-              <Search className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
+              <Search className="absolute w-4 h-4 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search by name, clinic, or specialization..."
-                className="w-full py-3 pl-10 pr-4 transition-all border outline-none bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 dark:text-white"
+                className="w-full py-2 pl-10 pr-4 text-sm transition-all border outline-none bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 dark:text-white"
               />
             </div>
             <div className="relative sm:w-48">
-              <MapPin className="absolute w-5 h-5 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
+              <MapPin className="absolute w-4 h-4 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
               <input
                 type="text"
                 value={locationQuery}
                 onChange={(e) => setLocationQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Location"
-                className="w-full py-3 pl-10 pr-4 transition-all border outline-none bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 dark:text-white"
+                className="w-full py-2 pl-10 pr-4 text-sm transition-all border outline-none bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 dark:text-white"
               />
             </div>
             <button
               onClick={() => handleSearch()}
               disabled={isSearchingLocation}
-              className="px-6 py-3 font-medium text-white transition-colors shadow-sm bg-primary-600 hover:bg-primary-700 rounded-xl shadow-primary-600/20 whitespace-nowrap disabled:opacity-75"
+              className="px-6 py-2 text-sm font-medium text-white transition-colors shadow-sm bg-primary-600 hover:bg-primary-700 rounded-xl shadow-primary-600/20 whitespace-nowrap disabled:opacity-75"
             >
               {isSearchingLocation ? 'Searching...' : 'Search'}
             </button>
