@@ -433,14 +433,17 @@ export default function ClinicDashboard() {
                     className="p-4 border rounded-xl bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-primary-500/30 transition-all flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center"
                   >
                     <div>
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap text-sm text-slate-500 dark:text-slate-400">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Pet:</span>
+                        <span className="font-bold text-slate-900 dark:text-white">
                           {appt.pet_name}
                         </span>
+                        <span className="mx-1 text-slate-300 dark:text-slate-700">•</span>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Owner:</span>
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                           {appt.owner_name}
                         </span>
-                        <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getStatusStyle(appt.status)}`}>
+                        <span className={`px-2 py-0.5 text-xs font-bold rounded-full ml-1 ${getStatusStyle(appt.status)}`}>
                           {appt.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </div>
