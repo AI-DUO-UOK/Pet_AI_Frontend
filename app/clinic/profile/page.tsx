@@ -81,51 +81,12 @@ type ClinicReview = {
   treatment?: string;
 };
 
+type DoctorInfo = {
+  name: string;
+  speciality: string;
+};
+
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=1200&h=800&fit=crop';
-
-/*
-const DEFAULT_SERVICES = [
-  'General Checkups',
-  'Vaccinations',
-  'Dental Care',
-  'Surgery',
-  'Emergency Care',
-  'Grooming',
-];
-
-const DEFAULT_FACILITIES = [
-  'X-Ray',
-  'Ultrasound',
-  'Surgery Suite',
-  'Dental Equipment',
-  'Laboratory',
-];
-
-const DEFAULT_DOCTORS = [
-  'Dr. Sarah Jenkins',
-  'Dr. David Martinez',
-  'Dr. Lisa Wong',
-];
-
-const DEFAULT_REVIEWS: ClinicReview[] = [
-  {
-    id: '1',
-    reviewer: 'John Smith',
-    pet: 'Max (Golden Retriever)',
-    rating: 5,
-    comment: 'Excellent care and very professional staff. Dr. Jenkins was amazing with Max!',
-    date: '2024-03-15',
-  },
-  {
-    id: '2',
-    reviewer: 'Sarah Chen',
-    pet: 'Bella (Poodle)',
-    rating: 5,
-    comment: 'Best vet clinic in the area. Highly recommend!',
-    date: '2024-02-28',
-  },
-];
-*/
 
 const formatDoctorName = (name: string) => {
   const trimmed = name.trim();
@@ -178,7 +139,7 @@ function getRawDescription(description: string): string {
 function rebuildDescription(
   rawDesc: string,
   currentServices: string[],
-  currentDoctors: string[]
+  currentDoctors: DoctorInfo[]
 ): string {
   const parts = [rawDesc.trim()];
   
@@ -187,15 +148,59 @@ function rebuildDescription(
   }
   
   if (currentDoctors.length > 0) {
-    const leadVet = currentDoctors[0];
+    const doctorNames = currentDoctors.map(d => d.name);
+    const leadVet = doctorNames[0];
     parts.push(`Lead veterinarian: ${leadVet}`);
-    if (currentDoctors.length > 1) {
-      parts.push(`Team: ${currentDoctors.slice(1).join(', ')}`);
+    if (doctorNames.length > 1) {
+      parts.push(`Team: ${doctorNames.slice(1).join(', ')}`);
     }
   }
   
   return parts.filter(Boolean).join('\n\n');
 }
+
+/** Parse an opening_hours string like "9AM - 5PM" into { from: "09:00", to: "17:00" } */
+function parseOpeningHours(hoursStr: string): { from: string; to: string } {
+  const defaultVal = { from: '09:00', to: '17:00' };
+  if (!hoursStr) return defaultVal;
+
+  const parts = hoursStr.split('-').map(p => p.trim());
+  if (parts.length !== 2) return defaultVal;
+
+  const to24h = (timeStr: string): string => {
+    const match = timeStr.match(/^(\d+)(?::(\d+))?\s*(AM|PM)?$/i);
+    if (!match) return '';
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2] ? match[2].padStart(2, '0') : '00';
+    const ampm = match[3] ? match[3].toUpperCase() : null;
+
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
+  };
+
+  return {
+    from: to24h(parts[0]) || defaultVal.from,
+    to: to24h(parts[1]) || defaultVal.to,
+  };
+}
+
+/** Format two 24h time strings into "9AM - 5PM" format */
+function formatOpeningHours(from: string, to: string): string {
+  const to12h = (timeStr: string): string => {
+    const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return timeStr;
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    if (hours > 12) hours -= 12;
+    if (hours === 0) hours = 12;
+    return `${hours}${minutes === '00' ? '' : `:${minutes}`}${ampm}`;
+  };
+  return `${to12h(from)} - ${to12h(to)}`;
+}
+
 export default function ClinicProfilePage() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ClinicProfile | null>(null);
@@ -207,12 +212,13 @@ export default function ClinicProfilePage() {
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [services, setServices] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<string[]>([]);
-  const [doctors, setDoctors] = useState<string[]>([]);
+  const [doctors, setDoctors] = useState<DoctorInfo[]>([]);
   const [reviews, setReviews] = useState<ClinicReview[]>([]);
   const [, setReviewStats] = useState({ count: 0, averageRating: 0 });
   const [newService, setNewService] = useState('');
   const [newFacility, setNewFacility] = useState('');
   const [newDoctor, setNewDoctor] = useState('');
+  const [newDoctorSpeciality, setNewDoctorSpeciality] = useState('');
   
   // Google Maps States
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -242,6 +248,10 @@ export default function ClinicProfilePage() {
     latitude: '',
     longitude: '',
   });
+
+  // Separate time fields for the AM/PM time picker
+  const [openingTimeFrom, setOpeningTimeFrom] = useState('09:00');
+  const [openingTimeTo, setOpeningTimeTo] = useState('17:00');
 
   const clinicImageUrl = useMemo(
     () => profile?.clinic_logo_url || FALLBACK_IMAGE,
@@ -301,14 +311,22 @@ export default function ClinicProfilePage() {
           longitude: clinic.longitude !== undefined && clinic.longitude !== null ? String(clinic.longitude) : '',
         });
 
+        // Parse opening hours into separate time fields
+        const parsed = parseOpeningHours(clinic.opening_hours || '');
+        setOpeningTimeFrom(parsed.from);
+        setOpeningTimeTo(parsed.to);
+
         const { leadVet, team, specialties } = parseClinicDescription(clinic.description || '');
-        const dbDoctors = [leadVet, ...team].map(formatDoctorName).filter(Boolean);
+        const dbDoctorNames = [leadVet, ...team].map(formatDoctorName).filter(Boolean);
         const dbServices = specialties;
 
         const savedExtra = localStorage.getItem('clinicProfileExtras');
         let initialServices = dbServices;
         let initialFacilities: string[] = [];
-        let initialDoctors = dbDoctors;
+        let initialDoctors: DoctorInfo[] = dbDoctorNames.map(name => ({
+          name,
+          speciality: 'General veterinary care',
+        }));
 
         if (savedExtra) {
           try {
@@ -316,7 +334,15 @@ export default function ClinicProfilePage() {
             if (parsed) {
               if (Array.isArray(parsed.services)) initialServices = parsed.services;
               if (Array.isArray(parsed.facilities)) initialFacilities = parsed.facilities;
-              if (Array.isArray(parsed.doctors)) initialDoctors = parsed.doctors;
+              if (Array.isArray(parsed.doctors)) {
+                // Handle both old format (string[]) and new format (DoctorInfo[])
+                initialDoctors = parsed.doctors.map((d: any) => {
+                  if (typeof d === 'string') {
+                    return { name: d, speciality: 'General veterinary care' };
+                  }
+                  return { name: d.name || '', speciality: d.speciality || 'General veterinary care' };
+                }).filter((d: DoctorInfo) => d.name);
+              }
             }
           } catch {
             // Keep parsed database values if localStorage parsing fails
@@ -324,7 +350,7 @@ export default function ClinicProfilePage() {
         } else {
           localStorage.setItem(
             'clinicProfileExtras',
-            JSON.stringify({ services: dbServices, facilities: [], doctors: dbDoctors })
+            JSON.stringify({ services: dbServices, facilities: [], doctors: initialDoctors })
           );
         }
 
@@ -637,11 +663,14 @@ export default function ClinicProfilePage() {
   };
 
   const addDoctor = () => {
-    const value = newDoctor.trim();
-    if (!value || doctors.includes(value)) return;
-    const next = [...doctors, value];
+    const name = newDoctor.trim();
+    if (!name) return;
+    if (doctors.some(d => d.name === name)) return;
+    const speciality = newDoctorSpeciality.trim() || 'General veterinary care';
+    const next = [...doctors, { name, speciality }];
     setDoctors(next);
     setNewDoctor('');
+    setNewDoctorSpeciality('');
     persistExtras(services, facilities, next);
   };
 
@@ -657,8 +686,8 @@ export default function ClinicProfilePage() {
     persistExtras(services, next, doctors);
   };
 
-  const removeDoctor = (doctor: string) => {
-    const next = doctors.filter((item) => item !== doctor);
+  const removeDoctor = (doctorName: string) => {
+    const next = doctors.filter((item) => item.name !== doctorName);
     setDoctors(next);
     persistExtras(services, facilities, next);
   };
@@ -678,7 +707,9 @@ export default function ClinicProfilePage() {
       formData.append('zip_code', formState.zip_code);
       formData.append('country', formState.country);
       formData.append('website', formState.website);
-      formData.append('opening_hours', formState.opening_hours);
+      // Combine the two time fields into opening_hours
+      const combinedHours = formatOpeningHours(openingTimeFrom, openingTimeTo);
+      formData.append('opening_hours', combinedHours);
       const rawDesc = formState.description;
       const finalDescription = rebuildDescription(rawDesc, services, doctors);
       formData.append('description', finalDescription);
@@ -896,16 +927,35 @@ export default function ClinicProfilePage() {
               </div>
               <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
-                  <Clock className="w-4 h-4" /> Hours
+                  <Clock className="w-4 h-4" /> Opening Hours
                 </div>
                 {isEditing ? (
-                  <input
-                    type="text"
-                    value={formState.opening_hours}
-                    onChange={(e) => handleFieldChange('opening_hours', e.target.value)}
-                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                    placeholder="Operating hours (e.g. 9AM - 5PM)"
-                  />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">From</label>
+                        <input
+                          type="time"
+                          value={openingTimeFrom}
+                          onChange={(e) => setOpeningTimeFrom(e.target.value)}
+                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                        />
+                      </div>
+                      <span className="text-slate-400 mt-5">—</span>
+                      <div className="flex-1">
+                        <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">To</label>
+                        <input
+                          type="time"
+                          value={openingTimeTo}
+                          onChange={(e) => setOpeningTimeTo(e.target.value)}
+                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Preview: {formatOpeningHours(openingTimeFrom, openingTimeTo)}
+                    </p>
+                  </div>
                 ) : (
                   <p className="font-semibold text-slate-900 dark:text-white">{profile?.opening_hours || 'Not provided'}</p>
                 )}
@@ -1077,9 +1127,7 @@ export default function ClinicProfilePage() {
                   </div>
                 )}
               </div>
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">This image is shown on the clinic profile and in admin review views. Gallery uploads appear below it.</p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -1111,21 +1159,42 @@ export default function ClinicProfilePage() {
           </h2>
           <div className="space-y-3">
             {doctors.map((doctor) => (
-              <div key={doctor} className="p-3 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-900/10 rounded-lg border border-primary-200 dark:border-primary-800 flex items-center justify-between gap-3">
+              <div key={doctor.name} className="p-3 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-900/10 rounded-lg border border-primary-200 dark:border-primary-800 flex items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{doctor}</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Specialist in: General veterinary care</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">{doctor.name}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Specialist in: {doctor.speciality}</p>
                 </div>
                 {isEditing && (
-                  <button type="button" onClick={() => removeDoctor(doctor)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => removeDoctor(doctor.name)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
                 )}
               </div>
             ))}
           </div>
           {isEditing && (
-            <div className="flex gap-2 mt-4">
-              <input value={newDoctor} onChange={(e) => setNewDoctor(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addDoctor()} placeholder="Add doctor..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white" />
-              <button type="button" onClick={addDoctor} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+            <div className="flex flex-col gap-2 mt-4">
+              <div className="flex gap-2">
+                <input
+                  value={newDoctor}
+                  onChange={(e) => setNewDoctor(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addDoctor()}
+                  placeholder="Add doctor name..."
+                  className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={addDoctor}
+                  className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />Add
+                </button>
+              </div>
+              <input
+                value={newDoctorSpeciality}
+                onChange={(e) => setNewDoctorSpeciality(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addDoctor()}
+                placeholder="Speciality (e.g. Veterinary Surgery, Dermatology)..."
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white"
+              />
             </div>
           )}
         </div>
