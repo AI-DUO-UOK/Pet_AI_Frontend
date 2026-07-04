@@ -388,11 +388,7 @@ export default function ClinicPatients() {
     const t = type.toLowerCase().trim();
     if (t === 'dog') return '🐶 Dog';
     if (t === 'cat') return '🐱 Cat';
-    if (t === 'rabbit') return '🐰 Rabbit';
-    if (t === 'bird') return '🐦 Bird';
-    if (t === 'fish') return '🐟 Fish';
-    if (t === 'pet') return '';
-    return `🐾 ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    return '';
   };
 
   const getPetTypeDisplay = (petType: string, breed?: string) => {
@@ -639,7 +635,7 @@ export default function ClinicPatients() {
                           <p className="font-semibold text-slate-900 dark:text-white">
                             {patient.petName}
                           </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                             {getPetTypeDisplay(patient.petType, patient.breed)}
                           </p>
                         </div>
