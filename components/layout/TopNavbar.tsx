@@ -88,11 +88,11 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
             {isVerified && (
               <span className="group relative inline-flex items-center">
                 <CheckCircle2 className="w-4 h-4 text-green-500 fill-green-500/10" />
-                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-lg pointer-events-none">
+                <span className="absolute top-full right-0 mt-2 w-64 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg pointer-events-none whitespace-normal font-normal">
                   <span className="font-semibold">Verified Clinic ✅</span>
                   <br />
                   Your clinic is now visible to pet owners and all features are unlocked.
-                  <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                  <span className="absolute bottom-full right-1 border-4 border-transparent border-b-slate-800" />
                 </span>
               </span>
             )}
