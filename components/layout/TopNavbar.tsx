@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Menu, Search, Sun, Moon } from 'lucide-react';
+import { Menu, Search, Sun, Moon, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationDropdown } from '../ui/NotificationDropdown';
@@ -27,6 +27,9 @@ function getInitials(name?: string): string {
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const { theme, toggleTheme } = useTheme();
   const { user, role } = useAuth();
+
+  const isVerified = role === 'clinic' && user?.verificationStatus === 'approved';
+  const displayName = role === 'clinic' ? (user?.clinicName || user?.name) : user?.name?.split(' ')[0];
 
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between">
@@ -80,8 +83,19 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
             </div>
           )}
 
-          <span className="hidden sm:block text-sm font-medium text-slate-700 dark:text-slate-200">
-            {user?.name?.split(' ')[0] || 'User'}
+          <span className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+            {displayName || 'User'}
+            {isVerified && (
+              <span className="group relative inline-flex items-center">
+                <CheckCircle2 className="w-4 h-4 text-green-500 fill-green-500/10" />
+                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-lg pointer-events-none">
+                  <span className="font-semibold">Verified Clinic ✅</span>
+                  <br />
+                  Your clinic is now visible to pet owners and all features are unlocked.
+                  <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                </span>
+              </span>
+            )}
           </span>
         </Link>
       </div>

@@ -125,11 +125,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let hasProfile = true;
       let verificationStatus: 'pending' | 'approved' | 'rejected' | undefined = undefined;
       let avatar = dbUser.avatar_url || undefined;
+      let clinicName: string | undefined = undefined;
 
       if (dbUser.role === 'clinic') {
         let { data: clinic, error: clinicError } = await supabase
           .from('clinics')
-          .select('id, is_verified, clinic_logo_url')
+          .select('id, is_verified, clinic_logo_url, clinic_name')
           .eq('user_id', userId)
           .maybeSingle();
 
@@ -157,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (clinic.clinic_logo_url) {
             avatar = clinic.clinic_logo_url;
           }
+          clinicName = clinic.clinic_name || undefined;
         }
       } else if (dbUser.role === 'owner') {
         let { data: owner, error: ownerError } = await supabase
@@ -209,6 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phone: dbUser.phone_number || undefined,
         verificationStatus,
         hasProfile,
+        ...(dbUser.role === 'clinic' ? { clinicName } : {}),
       };
     } catch (e) {
       console.error('Error fetching profile details:', e);

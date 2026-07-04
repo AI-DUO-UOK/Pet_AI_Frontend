@@ -44,7 +44,6 @@ interface Review {
 export default function ClinicDashboard() {
   const { user } = useAuth();
   const clinicName = user?.clinicName || user?.name || 'Clinic';
-  const isVerified = user?.verificationStatus === 'approved';
   const isPending = user?.verificationStatus === 'pending';
   const isRejected = user?.verificationStatus === 'rejected';
 
@@ -244,24 +243,6 @@ export default function ClinicDashboard() {
             </h3>
             <p className="mt-1 text-sm text-red-800 dark:text-red-300">
               Please contact support or resubmit your clinic information with the required documents.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
-      {isVerified && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-4 p-4 border border-green-200 rounded-lg bg-green-50 dark:bg-green-900/20 dark:border-green-800"
-        >
-          <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="font-semibold text-green-900 dark:text-green-200">
-              Verified Clinic ✅
-            </h3>
-            <p className="mt-1 text-sm text-green-800 dark:text-green-300">
-              Your clinic is now visible to pet owners and all features are unlocked.
             </p>
           </div>
         </motion.div>
