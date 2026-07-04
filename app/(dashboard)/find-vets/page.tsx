@@ -527,7 +527,7 @@ export default function FindVets() {
                 </div>
 
                 <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  Hours: {clinic.opening_hours || 'Not provided'}
+                  Opening hours: {clinic.opening_hours || 'Not provided'}
                 </div>
               </div>
 
