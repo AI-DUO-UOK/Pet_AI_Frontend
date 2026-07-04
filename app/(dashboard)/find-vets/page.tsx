@@ -527,7 +527,7 @@ export default function FindVets() {
                 </div>
 
                 <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  Hours: {clinic.operating_hours || 'Not provided'}
+                  Hours: {clinic.opening_hours || 'Not provided'}
                 </div>
               </div>
 
@@ -558,7 +558,7 @@ export default function FindVets() {
               </div>
 
               <button
-                onClick={() => router.push(`/clinic-profile/${clinic.id}`)}
+                onClick={() => router.push(`/clinic-profile/${clinic.id}${clinic.distance !== undefined && clinic.distance !== null ? `?distance=${clinic.distance}` : ''}`)}
                 className="w-full mt-4 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
               >
                 View Clinic Profile
