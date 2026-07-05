@@ -57,6 +57,9 @@ function ClinicDetailsModal({
   );
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+  const isPdf = clinic.license_document_url ? clinic.license_document_url.split(/[?#]/)[0].toLowerCase().endsWith('.pdf') : false;
+  const clinicStatus = clinic.verification_status || (clinic.is_rejected ? 'rejected' : clinic.is_verified ? 'approved' : 'pending');
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -135,26 +138,41 @@ function ClinicDetailsModal({
               License / Registration Document
             </p>
             {clinic.license_document_url ? (
-              clinic.license_document_url.toLowerCase().endsWith('.pdf') ? (
-                <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Verification License (PDF)
-                  </span>
-                  <a
-                    href={clinic.license_document_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700"
-                  >
-                    Open PDF Document
-                  </a>
+              isPdf ? (
+                <div
+                  onClick={() => setShowDocumentPreview(true)}
+                  className="flex flex-col items-center justify-center p-6 border border-dashed rounded-2xl bg-slate-50 hover:bg-slate-100/70 dark:bg-slate-800/40 dark:hover:bg-slate-800/60 border-slate-300 dark:border-slate-700 cursor-pointer transition-all h-56 space-y-3 group"
+                >
+                  <div className="p-4 rounded-full bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform shadow-sm">
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      Verification License (PDF)
+                    </span>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Click to preview document inline
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <img
-                  src={clinic.license_document_url}
-                  alt={`${clinic.clinic_name} License Document`}
-                  className="object-contain w-full h-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                />
+                <div
+                  onClick={() => setShowDocumentPreview(true)}
+                  className="relative cursor-pointer group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 h-56 flex items-center justify-center"
+                >
+                  <img
+                    src={clinic.license_document_url}
+                    alt={`${clinic.clinic_name} License Document`}
+                    className="object-contain w-full h-full group-hover:scale-102 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    <span className="px-4 py-2 text-xs font-semibold text-white bg-slate-900/80 rounded-lg shadow backdrop-blur-sm">
+                      Click to View Full Image
+                    </span>
+                  </div>
+                </div>
               )
             ) : (
               <div className="flex items-center justify-center h-32 border-2 border-dashed rounded-2xl text-slate-400 border-slate-300 dark:border-slate-700">
@@ -261,20 +279,22 @@ function ClinicDetailsModal({
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Select Action:
             </p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setAction('approve')}
-                className={`px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                  action === 'approve'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-800'
-                }`}
-              >
-                <CheckCircle className="w-4 h-4" />
-                Approve
-              </motion.button>
+            <div className={`grid gap-3 ${clinicStatus === 'approved' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+              {clinicStatus !== 'approved' && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setAction('approve')}
+                  className={`px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                    action === 'approve'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-800'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approve
+                </motion.button>
+              )}
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -344,6 +364,53 @@ function ClinicDetailsModal({
           </motion.button>
         </div>
       </motion.div>
+
+      {/* Document Full Preview Modal */}
+      {showDocumentPreview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+          <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                {isPdf ? 'License Verification Document (PDF)' : 'License Verification Document (Image)'}
+              </h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={clinic.license_document_url || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+                >
+                  Open in New Tab
+                </a>
+                <button
+                  onClick={() => setShowDocumentPreview(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                >
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-4 flex-1 overflow-y-auto flex items-center justify-center bg-slate-100 dark:bg-slate-950 min-h-[50vh]">
+              {isPdf ? (
+                <iframe
+                  src={clinic.license_document_url || undefined}
+                  className="w-full h-[70vh] border-0 rounded-lg bg-white"
+                  title="Verification Document PDF Viewer"
+                />
+              ) : (
+                <img
+                  src={clinic.license_document_url || ''}
+                  alt="Verification Document"
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

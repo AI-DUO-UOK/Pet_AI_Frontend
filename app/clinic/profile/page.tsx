@@ -81,51 +81,34 @@ type ClinicReview = {
   treatment?: string;
 };
 
+type DoctorInfo = {
+  name: string;
+  speciality: string;
+};
+
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=1200&h=800&fit=crop';
 
-/*
-const DEFAULT_SERVICES = [
-  'General Checkups',
-  'Vaccinations',
-  'Dental Care',
-  'Surgery',
-  'Emergency Care',
+const SUGGESTED_SERVICES = [
+  'General Checkup',
+  'Vaccination',
+  'Emergency Consultation',
+  'Surgery Consultation',
+  'Dental Checkup',
   'Grooming',
+  'Deworming',
+  'Microchipping',
 ];
 
-const DEFAULT_FACILITIES = [
+const SUGGESTED_FACILITIES = [
   'X-Ray',
   'Ultrasound',
   'Surgery Suite',
   'Dental Equipment',
   'Laboratory',
+  'Pharmacy',
+  'Pet Boarding',
+  'Grooming Station',
 ];
-
-const DEFAULT_DOCTORS = [
-  'Dr. Sarah Jenkins',
-  'Dr. David Martinez',
-  'Dr. Lisa Wong',
-];
-
-const DEFAULT_REVIEWS: ClinicReview[] = [
-  {
-    id: '1',
-    reviewer: 'John Smith',
-    pet: 'Max (Golden Retriever)',
-    rating: 5,
-    comment: 'Excellent care and very professional staff. Dr. Jenkins was amazing with Max!',
-    date: '2024-03-15',
-  },
-  {
-    id: '2',
-    reviewer: 'Sarah Chen',
-    pet: 'Bella (Poodle)',
-    rating: 5,
-    comment: 'Best vet clinic in the area. Highly recommend!',
-    date: '2024-02-28',
-  },
-];
-*/
 
 const formatDoctorName = (name: string) => {
   const trimmed = name.trim();
@@ -178,7 +161,7 @@ function getRawDescription(description: string): string {
 function rebuildDescription(
   rawDesc: string,
   currentServices: string[],
-  currentDoctors: string[]
+  currentDoctors: DoctorInfo[]
 ): string {
   const parts = [rawDesc.trim()];
   
@@ -187,15 +170,59 @@ function rebuildDescription(
   }
   
   if (currentDoctors.length > 0) {
-    const leadVet = currentDoctors[0];
+    const doctorNames = currentDoctors.map(d => d.name);
+    const leadVet = doctorNames[0];
     parts.push(`Lead veterinarian: ${leadVet}`);
-    if (currentDoctors.length > 1) {
-      parts.push(`Team: ${currentDoctors.slice(1).join(', ')}`);
+    if (doctorNames.length > 1) {
+      parts.push(`Team: ${doctorNames.slice(1).join(', ')}`);
     }
   }
   
   return parts.filter(Boolean).join('\n\n');
 }
+
+/** Parse an opening_hours string like "9AM - 5PM" into { from: "09:00", to: "17:00" } */
+function parseOpeningHours(hoursStr: string): { from: string; to: string } {
+  const defaultVal = { from: '09:00', to: '17:00' };
+  if (!hoursStr) return defaultVal;
+
+  const parts = hoursStr.split('-').map(p => p.trim());
+  if (parts.length !== 2) return defaultVal;
+
+  const to24h = (timeStr: string): string => {
+    const match = timeStr.match(/^(\d+)(?::(\d+))?\s*(AM|PM)?$/i);
+    if (!match) return '';
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2] ? match[2].padStart(2, '0') : '00';
+    const ampm = match[3] ? match[3].toUpperCase() : null;
+
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
+  };
+
+  return {
+    from: to24h(parts[0]) || defaultVal.from,
+    to: to24h(parts[1]) || defaultVal.to,
+  };
+}
+
+/** Format two 24h time strings into "9AM - 5PM" format */
+function formatOpeningHours(from: string, to: string): string {
+  const to12h = (timeStr: string): string => {
+    const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return timeStr;
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    if (hours > 12) hours -= 12;
+    if (hours === 0) hours = 12;
+    return `${hours}${minutes === '00' ? '' : `:${minutes}`}${ampm}`;
+  };
+  return `${to12h(from)} - ${to12h(to)}`;
+}
+
 export default function ClinicProfilePage() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ClinicProfile | null>(null);
@@ -207,12 +234,13 @@ export default function ClinicProfilePage() {
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [services, setServices] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<string[]>([]);
-  const [doctors, setDoctors] = useState<string[]>([]);
+  const [doctors, setDoctors] = useState<DoctorInfo[]>([]);
   const [reviews, setReviews] = useState<ClinicReview[]>([]);
   const [, setReviewStats] = useState({ count: 0, averageRating: 0 });
   const [newService, setNewService] = useState('');
   const [newFacility, setNewFacility] = useState('');
   const [newDoctor, setNewDoctor] = useState('');
+  const [newDoctorSpeciality, setNewDoctorSpeciality] = useState('');
   
   // Google Maps States
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -242,6 +270,10 @@ export default function ClinicProfilePage() {
     latitude: '',
     longitude: '',
   });
+
+  // Separate time fields for the AM/PM time picker
+  const [openingTimeFrom, setOpeningTimeFrom] = useState('09:00');
+  const [openingTimeTo, setOpeningTimeTo] = useState('17:00');
 
   const clinicImageUrl = useMemo(
     () => profile?.clinic_logo_url || FALLBACK_IMAGE,
@@ -301,14 +333,23 @@ export default function ClinicProfilePage() {
           longitude: clinic.longitude !== undefined && clinic.longitude !== null ? String(clinic.longitude) : '',
         });
 
+        // Parse opening hours into separate time fields
+        const parsed = parseOpeningHours(clinic.opening_hours || '');
+        setOpeningTimeFrom(parsed.from);
+        setOpeningTimeTo(parsed.to);
+
         const { leadVet, team, specialties } = parseClinicDescription(clinic.description || '');
-        const dbDoctors = [leadVet, ...team].map(formatDoctorName).filter(Boolean);
+        const dbDoctorNames = [leadVet, ...team].map(formatDoctorName).filter(Boolean);
         const dbServices = specialties;
 
-        const savedExtra = localStorage.getItem('clinicProfileExtras');
+        const storageKey = `clinicProfileExtras_${clinic.id}`;
+        const savedExtra = localStorage.getItem(storageKey);
         let initialServices = dbServices;
         let initialFacilities: string[] = [];
-        let initialDoctors = dbDoctors;
+        let initialDoctors: DoctorInfo[] = dbDoctorNames.map(name => ({
+          name,
+          speciality: 'General veterinary care',
+        }));
 
         if (savedExtra) {
           try {
@@ -316,15 +357,23 @@ export default function ClinicProfilePage() {
             if (parsed) {
               if (Array.isArray(parsed.services)) initialServices = parsed.services;
               if (Array.isArray(parsed.facilities)) initialFacilities = parsed.facilities;
-              if (Array.isArray(parsed.doctors)) initialDoctors = parsed.doctors;
+              if (Array.isArray(parsed.doctors)) {
+                // Handle both old format (string[]) and new format (DoctorInfo[])
+                initialDoctors = parsed.doctors.map((d: any) => {
+                  if (typeof d === 'string') {
+                    return { name: d, speciality: 'General veterinary care' };
+                  }
+                  return { name: d.name || '', speciality: d.speciality || 'General veterinary care' };
+                }).filter((d: DoctorInfo) => d.name);
+              }
             }
           } catch {
             // Keep parsed database values if localStorage parsing fails
           }
         } else {
           localStorage.setItem(
-            'clinicProfileExtras',
-            JSON.stringify({ services: dbServices, facilities: [], doctors: dbDoctors })
+            storageKey,
+            JSON.stringify({ services: dbServices, facilities: [], doctors: initialDoctors })
           );
         }
 
@@ -612,8 +661,9 @@ export default function ClinicProfilePage() {
   };
 
   const persistExtras = (nextServices = services, nextFacilities = facilities, nextDoctors = doctors) => {
+    if (!profile?.id) return;
     localStorage.setItem(
-      'clinicProfileExtras',
+      `clinicProfileExtras_${profile.id}`,
       JSON.stringify({ services: nextServices, facilities: nextFacilities, doctors: nextDoctors })
     );
   };
@@ -637,11 +687,14 @@ export default function ClinicProfilePage() {
   };
 
   const addDoctor = () => {
-    const value = newDoctor.trim();
-    if (!value || doctors.includes(value)) return;
-    const next = [...doctors, value];
+    const name = newDoctor.trim();
+    if (!name) return;
+    if (doctors.some(d => d.name === name)) return;
+    const speciality = newDoctorSpeciality.trim() || 'General veterinary care';
+    const next = [...doctors, { name, speciality }];
     setDoctors(next);
     setNewDoctor('');
+    setNewDoctorSpeciality('');
     persistExtras(services, facilities, next);
   };
 
@@ -657,8 +710,8 @@ export default function ClinicProfilePage() {
     persistExtras(services, next, doctors);
   };
 
-  const removeDoctor = (doctor: string) => {
-    const next = doctors.filter((item) => item !== doctor);
+  const removeDoctor = (doctorName: string) => {
+    const next = doctors.filter((item) => item.name !== doctorName);
     setDoctors(next);
     persistExtras(services, facilities, next);
   };
@@ -678,7 +731,9 @@ export default function ClinicProfilePage() {
       formData.append('zip_code', formState.zip_code);
       formData.append('country', formState.country);
       formData.append('website', formState.website);
-      formData.append('opening_hours', formState.opening_hours);
+      // Combine the two time fields into opening_hours
+      const combinedHours = formatOpeningHours(openingTimeFrom, openingTimeTo);
+      formData.append('opening_hours', combinedHours);
       const rawDesc = formState.description;
       const finalDescription = rebuildDescription(rawDesc, services, doctors);
       formData.append('description', finalDescription);
@@ -896,16 +951,35 @@ export default function ClinicProfilePage() {
               </div>
               <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
-                  <Clock className="w-4 h-4" /> Hours
+                  <Clock className="w-4 h-4" /> Opening Hours
                 </div>
                 {isEditing ? (
-                  <input
-                    type="text"
-                    value={formState.opening_hours}
-                    onChange={(e) => handleFieldChange('opening_hours', e.target.value)}
-                    className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                    placeholder="Operating hours (e.g. 9AM - 5PM)"
-                  />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">From</label>
+                        <input
+                          type="time"
+                          value={openingTimeFrom}
+                          onChange={(e) => setOpeningTimeFrom(e.target.value)}
+                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                        />
+                      </div>
+                      <span className="text-slate-400 mt-5">—</span>
+                      <div className="flex-1">
+                        <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">To</label>
+                        <input
+                          type="time"
+                          value={openingTimeTo}
+                          onChange={(e) => setOpeningTimeTo(e.target.value)}
+                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Preview: {formatOpeningHours(openingTimeFrom, openingTimeTo)}
+                    </p>
+                  </div>
                 ) : (
                   <p className="font-semibold text-slate-900 dark:text-white">{profile?.opening_hours || 'Not provided'}</p>
                 )}
@@ -997,7 +1071,7 @@ export default function ClinicProfilePage() {
                 />
               ) : (
                 <p className="leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-line">
-                  {profile?.description || 'No clinic description has been provided yet.'}
+                  {getRawDescription(profile?.description || '') || 'No clinic description has been provided yet.'}
                 </p>
               )}
             </div>
@@ -1077,30 +1151,58 @@ export default function ClinicProfilePage() {
                   </div>
                 )}
               </div>
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">This image is shown on the clinic profile and in admin review views. Gallery uploads appear below it.</p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Services</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {services.map((service) => (
-              <div key={service} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                <p className="text-sm font-medium text-slate-900 dark:text-white">{service}</p>
-                {isEditing && (
-                  <button type="button" onClick={() => removeService(service)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
-                )}
-              </div>
-            ))}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Services</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {services.length > 0 ? (
+                services.map((service) => (
+                  <div key={service} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{service}</p>
+                    {isEditing && (
+                      <button type="button" onClick={() => removeService(service)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center border border-dashed rounded-xl border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 col-span-2 flex flex-col items-center justify-center">
+                  <span className="font-semibold text-slate-700 dark:text-slate-350">Add your services</span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Click "Edit Profile" to define the services you offer.</p>
+                </div>
+              )}
+            </div>
           </div>
           {isEditing && (
-            <div className="flex gap-2 mt-4">
-              <input value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addService()} placeholder="Add service..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white" />
-              <button type="button" onClick={addService} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+              <div className="flex gap-2">
+                <input value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addService()} placeholder="Add service..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20" />
+                <button type="button" onClick={addService} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Click to quick-add suggested services:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SUGGESTED_SERVICES.filter(svc => !services.includes(svc)).map(svc => (
+                    <button
+                      key={svc}
+                      type="button"
+                      onClick={() => {
+                        const next = [...services, svc];
+                        setServices(next);
+                        persistExtras(next, facilities, doctors);
+                      }}
+                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-primary-50 dark:bg-slate-800/40 dark:hover:bg-primary-950/20 text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                    >
+                      + {svc}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1111,21 +1213,42 @@ export default function ClinicProfilePage() {
           </h2>
           <div className="space-y-3">
             {doctors.map((doctor) => (
-              <div key={doctor} className="p-3 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-900/10 rounded-lg border border-primary-200 dark:border-primary-800 flex items-center justify-between gap-3">
+              <div key={doctor.name} className="p-3 bg-gradient-to-r from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-900/10 rounded-lg border border-primary-200 dark:border-primary-800 flex items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{doctor}</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Specialist in: General veterinary care</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">{doctor.name}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Specialist in: {doctor.speciality}</p>
                 </div>
                 {isEditing && (
-                  <button type="button" onClick={() => removeDoctor(doctor)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => removeDoctor(doctor.name)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
                 )}
               </div>
             ))}
           </div>
           {isEditing && (
-            <div className="flex gap-2 mt-4">
-              <input value={newDoctor} onChange={(e) => setNewDoctor(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addDoctor()} placeholder="Add doctor..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white" />
-              <button type="button" onClick={addDoctor} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+            <div className="flex flex-col gap-2 mt-4">
+              <div className="flex gap-2">
+                <input
+                  value={newDoctor}
+                  onChange={(e) => setNewDoctor(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addDoctor()}
+                  placeholder="Add doctor name..."
+                  className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={addDoctor}
+                  className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />Add
+                </button>
+              </div>
+              <input
+                value={newDoctorSpeciality}
+                onChange={(e) => setNewDoctorSpeciality(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addDoctor()}
+                placeholder="Speciality (e.g. Veterinary Surgery, Dermatology)..."
+                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white"
+              />
             </div>
           )}
         </div>
@@ -1134,17 +1257,45 @@ export default function ClinicProfilePage() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Facilities</h2>
         <div className="flex flex-wrap gap-2">
-          {facilities.map((facility) => (
-            <span key={facility} className="inline-flex items-center gap-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full font-medium">
-              {facility}
-              {isEditing && <button type="button" onClick={() => removeFacility(facility)} className="hover:text-blue-900 dark:hover:text-blue-200"><X className="w-3.5 h-3.5" /></button>}
-            </span>
-          ))}
+          {facilities.length > 0 ? (
+            facilities.map((facility) => (
+              <span key={facility} className="inline-flex items-center gap-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full font-medium">
+                {facility}
+                {isEditing && <button type="button" onClick={() => removeFacility(facility)} className="hover:text-blue-900 dark:hover:text-blue-200"><X className="w-3.5 h-3.5" /></button>}
+              </span>
+            ))
+          ) : (
+            <div className="py-8 text-center border border-dashed rounded-xl border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 w-full flex flex-col items-center justify-center">
+              <span className="font-semibold text-slate-700 dark:text-slate-350">Add your facilities</span>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Click "Edit Profile" to specify clinic equipment and facilities.</p>
+            </div>
+          )}
         </div>
         {isEditing && (
-          <div className="flex gap-2 mt-4">
-            <input value={newFacility} onChange={(e) => setNewFacility(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFacility()} placeholder="Add facility..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white" />
-            <button type="button" onClick={addFacility} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+            <div className="flex gap-2">
+              <input value={newFacility} onChange={(e) => setNewFacility(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFacility()} placeholder="Add facility..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20" />
+              <button type="button" onClick={addFacility} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Click to quick-add suggested facilities:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {SUGGESTED_FACILITIES.filter(fac => !facilities.includes(fac)).map(fac => (
+                  <button
+                    key={fac}
+                    type="button"
+                    onClick={() => {
+                      const next = [...facilities, fac];
+                      setFacilities(next);
+                      persistExtras(services, next, doctors);
+                    }}
+                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-primary-50 dark:bg-slate-800/40 dark:hover:bg-primary-950/20 text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                  >
+                    + {fac}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1156,8 +1307,8 @@ export default function ClinicProfilePage() {
             <div key={review.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{review.reviewer}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Pet: <strong>{review.pet}</strong></p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Pet Owner: {review.reviewer}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Reviewed for Pet: <strong>{review.pet}</strong></p>
                 </div>
                 <div className="flex gap-0.5">
                   {[...Array(5)].map((_, i) => (
@@ -1171,7 +1322,9 @@ export default function ClinicProfilePage() {
               {review.comment && (
                 <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-300">"{review.comment}"</p>
               )}
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2.5">{review.date}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2.5">
+                {review.date ? new Date(review.date).toLocaleDateString() : ''}
+              </p>
             </div>
           )) : (
             <p className="py-6 text-sm text-center text-slate-500 dark:text-slate-400">No client reviews yet. Reviews will appear here after pet owners review completed channels.</p>

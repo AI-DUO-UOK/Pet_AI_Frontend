@@ -6,6 +6,12 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
 
+  // Detect HTTPS protocol when behind Vercel or other reverse proxies
+  const isHttps = request.headers.get('x-forwarded-proto') === 'https' || requestUrl.hostname.includes('vercel.app');
+  if (isHttps) {
+    requestUrl.protocol = 'https:';
+  }
+
   if (code) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -21,7 +27,7 @@ export async function GET(request: NextRequest) {
     
     if (!error && data.session) {
       // Redirect to select-role where role onboarding or dashboard redirection will happen
-      const response = NextResponse.redirect(new URL('/auth/select-role', request.url));
+      const response = NextResponse.redirect(new URL('/auth/select-role', requestUrl.toString()));
       
       // Set the session cookie for the middleware
       response.cookies.set('sb-access-token', data.session.access_token, {
@@ -36,5 +42,5 @@ export async function GET(request: NextRequest) {
   }
 
   // If error or no code, redirect back to login page
-  return NextResponse.redirect(new URL('/auth/login', request.url));
+  return NextResponse.redirect(new URL('/auth/login', requestUrl.toString()));
 }

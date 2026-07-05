@@ -84,6 +84,8 @@ interface Clinic {
     comment: string;
     date: string;
   }>;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 }
 
 interface ClinicExtras {
@@ -145,6 +147,18 @@ function getRawDescription(description: string): string {
   return rawLines.join('\n').trim();
 }
 
+const calculateHaversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+};
+
 export default function ClinicProfile() {
   const { user } = useAuth();
   const router = useRouter();
@@ -161,6 +175,7 @@ export default function ClinicProfile() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clinicReviews, setClinicReviews] = useState<any[]>([]);
   const [reviewStats, setReviewStats] = useState({ count: 0, averageRating: 0 });
+  const [calculatedDistance, setCalculatedDistance] = useState<string>('');
   const [channelForm, setChannelForm] = useState({
     date: '',
     time: '',
@@ -297,7 +312,7 @@ export default function ClinicProfile() {
 
   const loadClinicExtras = (): ClinicExtras => {
     try {
-      const stored = localStorage.getItem('clinicProfileExtras');
+      const stored = localStorage.getItem(`clinicProfileExtras_${clinicId}`);
       if (!stored) return {};
 
       const parsed = JSON.parse(stored);
@@ -412,6 +427,70 @@ export default function ClinicProfile() {
     };
     if (clinicId) load();
   }, [clinicId]);
+
+  useEffect(() => {
+    const computeDistance = async () => {
+      // 1. Try URL search params first
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const dist = params.get('distance');
+        if (dist) {
+          setCalculatedDistance(`${parseFloat(dist).toFixed(1)} km`);
+          return;
+        }
+      }
+
+      // 2. Otherwise calculate on the fly
+      if (!clinic?.latitude || !clinic?.longitude) return;
+
+      let userLat = null;
+      let userLng = null;
+
+      try {
+        const res = await apiFetch(`/api/auth/profile`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.profile) {
+            const profile = data.profile;
+            if (profile.latitude && profile.longitude) {
+              userLat = Number(profile.latitude);
+              userLng = Number(profile.longitude);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch user coordinates:', err);
+      }
+
+      // Fallback: Geolocation
+      if (userLat === null && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          userLat = pos.coords.latitude;
+          userLng = pos.coords.longitude;
+        } catch (e) {
+          userLat = 6.9271; // Colombo default
+          userLng = 79.8612;
+        }
+      }
+
+      if (userLat !== null && userLng !== null) {
+        const dist = calculateHaversineDistance(
+          userLat,
+          userLng,
+          Number(clinic.latitude),
+          Number(clinic.longitude)
+        );
+        setCalculatedDistance(`${dist.toFixed(1)} km`);
+      }
+    };
+
+    if (clinic) {
+      computeDistance();
+    }
+  }, [clinic]);
 
   if (loading) {
     return <div className="py-16 text-center text-slate-500 dark:text-slate-400">Loading clinic...</div>;
@@ -558,7 +637,7 @@ export default function ClinicProfile() {
             </span>
           </div>
           <p className="text-3xl font-bold text-slate-900 dark:text-white">
-            {clinic.distance}
+            {calculatedDistance || '—'}
           </p>
         </div>
 
@@ -566,10 +645,10 @@ export default function ClinicProfile() {
         <div className="p-4 bg-white border shadow-sm dark:bg-slate-900 rounded-xl border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2 mb-2">
             <Clock className="w-5 h-5 text-green-600" />
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Hours</span>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Opening Hours</span>
           </div>
-          <p className="text-sm font-bold text-slate-900 dark:text-white">
-            {clinic.operatingHours}
+          <p className="text-3xl font-bold text-slate-900 dark:text-white">
+            {clinic.operatingHours || '—'}
           </p>
         </div>
 
@@ -677,9 +756,9 @@ export default function ClinicProfile() {
             >
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{review.reviewer}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Pet Owner: {review.reviewer}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Pet: <strong>{review.pet}</strong>
+                    Reviewed for Pet: <strong>{review.pet}</strong>
                   </p>
                 </div>
                 <div className="flex gap-0.5">
@@ -701,7 +780,9 @@ export default function ClinicProfile() {
               {review.comment && (
                 <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-300">"{review.comment}"</p>
               )}
-              <p className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">{review.date}</p>
+              <p className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
+                {review.date ? new Date(review.date).toLocaleDateString() : ''}
+              </p>
             </div>
           )) : (
             <p className="py-6 text-sm text-center text-slate-500 dark:text-slate-400">No client reviews yet.</p>

@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Dog, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { GoogleButton } from '@/components/auth/GoogleButton';
 import { motion } from 'framer-motion';
 
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signInWithPassword, signInWithGoogle, isAuthenticated, role, user, loading: authLoading } = useAuth();
+  const { theme } = useTheme();
   const router = useRouter();
 
   // Redirect if already authenticated
@@ -109,14 +111,16 @@ export default function LoginPage() {
         className="w-full max-w-md overflow-hidden bg-white border shadow-xl dark:bg-slate-900 rounded-2xl border-slate-100 dark:border-slate-800"
       >
         <div className="p-8">
-          <div className="flex justify-center mb-8">
-            <div className="flex items-center justify-center w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl text-primary-600 dark:text-primary-400">
-              <Dog className="w-8 h-8" />
-            </div>
+          <div className="flex justify-center mb-0">
+            <img 
+              src={theme === 'dark' ? '/Dark_Mode_Logo.png' : '/Light_Mode_Logo.png'} 
+              alt="PetPulse Logo" 
+              className="h-28 w-auto object-contain"
+            />
           </div>
 
-          <h2 className="mb-2 text-2xl font-bold text-center text-slate-900 dark:text-white">
-            Welcome back to Dr. Paw
+          <h2 className="mb-2 text-4xl font-bold text-center text-slate-900 dark:text-white">
+            Welcome
           </h2>
           <p className="mb-8 text-center text-slate-500 dark:text-slate-400">
             Enter your details to access your account.

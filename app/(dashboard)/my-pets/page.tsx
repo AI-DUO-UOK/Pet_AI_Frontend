@@ -6,6 +6,7 @@ import { Plus, X, Upload, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { PetCard } from '@/components/ui/PetCard';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 type PetRecord = {
   id: string;
@@ -37,29 +38,143 @@ const FALLBACK_IMAGE_BY_TYPE: Record<'Dog' | 'Cat', string> = {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const DOG_BREEDS = [
-  'Sinhala Hound(Street Dog)',
-  'Labrador Retriever',
-  'German Shepherd',
-  'Golden Retriever',
-  'Rottweiler',
+  'Affenpinscher',
+  'Afghan Hound',
+  'Airedale Terrier',
+  'Akita',
+  'Alaskan Malamute',
+  'American Bulldog',
+  'American Cocker Spaniel',
+  'American Pit Bull Terrier',
+  'Australian Cattle Dog',
+  'Australian Shepherd',
+  'Basenji',
+  'Basset Hound',
   'Beagle',
-  'Shih Tzu',
+  'Bernese Mountain Dog',
+  'Bichon Frise',
+  'Bloodhound',
+  'Border Collie',
+  'Border Terrier',
+  'Boston Terrier',
+  'Boxer',
+  'Brittany Spaniel',
+  'Bull Terrier',
+  'Bulldog',
+  'Bullmastiff',
+  'Cane Corso',
+  'Cavalier King Charles Spaniel',
+  'Chihuahua',
+  'Chow Chow',
+  'Cocker Spaniel',
+  'Collie',
+  'Dalmatian',
+  'Doberman Pinscher',
+  'English Setter',
+  'English Springer Spaniel',
+  'French Bulldog',
+  'German Shepherd',
+  'German Shorthaired Pointer',
+  'Golden Retriever',
+  'Great Dane',
+  'Greyhound',
+  'Havanese',
+  'Irish Setter',
+  'Jack Russell Terrier',
+  'Labrador Retriever',
+  'Lhasa Apso',
+  'Maltese',
+  'Miniature Pinscher',
+  'Miniature Schnauzer',
+  'Newfoundland',
+  'Papillon',
+  'Pekingese',
+  'Pembroke Welsh Corgi',
   'Pomeranian',
-  'Dachshund',
+  'Poodle',
+  'Pug',
+  'Rottweiler',
+  'Saint Bernard',
+  'Samoyed',
+  'Schnauzer',
+  'Scottish Terrier',
+  'Shiba Inu',
+  'Shih Tzu',
+  'Siberian Husky',
+  'Sinhala Hound(Street Dog)',
+  'Staffordshire Bull Terrier',
+  'Vizsla',
+  'Weimaraner',
+  'Welsh Corgi',
+  'West Highland White Terrier',
+  'Whippet',
+  'Yorkshire Terrier',
+  'Mixed Breed',
+  'Other',
   'Other Mixed Breed',
   'Other Pure Breed',
   'Unknown'
 ];
 
 const CAT_BREEDS = [
-  'Domestic Shorthair (Mixed Breed)',
-  'Persian',
-  'Siamese',
-  'British Shorthair',
+  'Abyssinian',
+  'American Bobtail',
+  'American Curl',
+  'American Shorthair',
+  'American Wirehair',
+  'Balinese',
   'Bengal',
+  'Birman',
+  'Bombay',
+  'British Longhair',
+  'British Shorthair',
+  'Burmese',
+  'Burmilla',
+  'Chartreux',
+  'Cornish Rex',
+  'Devon Rex',
+  'Domestic Longhair',
+  'Domestic Medium Hair',
+  'Domestic Shorthair',
+  'Egyptian Mau',
+  'European Shorthair',
+  'Exotic Shorthair',
+  'Havana Brown',
+  'Himalayan',
+  'Japanese Bobtail',
+  'Khao Manee',
+  'Korat',
+  'LaPerm',
   'Maine Coon',
-  'Ceylon Cat',
-  'Other Pure Breed',
+  'Manx',
+  'Munchkin',
+  'Nebelung',
+  'Norwegian Forest Cat',
+  'Ocicat',
+  'Oriental Longhair',
+  'Oriental Shorthair',
+  'Persian',
+  'Peterbald',
+  'Pixie-bob',
+  'Ragamuffin',
+  'Ragdoll',
+  'Russian Blue',
+  'Savannah',
+  'Scottish Fold',
+  'Selkirk Rex',
+  'Siamese',
+  'Siberian',
+  'Singapura',
+  'Snowshoe',
+  'Somali',
+  'Sphynx',
+  'Thai',
+  'Tonkinese',
+  'Toyger',
+  'Turkish Angora',
+  'Turkish Van',
+  'Mixed Breed',
+  'Other',
   'Unknown'
 ];
 
@@ -445,16 +560,11 @@ export default function MyPets() {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Breed *
                         </label>
-                        <select
-                          name="breed"
+                        <SearchableSelect
+                          options={petForm.type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS}
                           value={petForm.breed}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white"
-                        >
-                          {(petForm.type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS).map((b) => (
-                            <option key={b} value={b}>{b}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setPetForm(prev => ({ ...prev, breed: val }))}
+                        />
                       </div>
 
                       <div className="col-span-2">
