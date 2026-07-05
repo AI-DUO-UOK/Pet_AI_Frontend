@@ -164,7 +164,21 @@ export default function ClinicPatients() {
           setClinicName(clinic.clinic_name || 'Clinic');
         }
 
-        const resp = await apiFetch(`/api/clinic/patients?clinic_id=${encodeURIComponent(clinic.id)}`);
+        // Fetch patients and all pets in parallel to map type and breed details
+        const [resp, petsResp] = await Promise.all([
+          apiFetch(`/api/clinic/patients?clinic_id=${encodeURIComponent(clinic.id)}`),
+          apiFetch('/api/pets')
+        ]);
+
+        let petsMap: Record<string, { type: string; breed: string }> = {};
+        if (petsResp.ok) {
+          const petsJson = await petsResp.json();
+          const petsList = petsJson.pets || [];
+          petsList.forEach((p: any) => {
+            petsMap[p.id] = { type: p.type || 'Pet', breed: p.breed || '' };
+          });
+        }
+
         if (!resp.ok) return;
         const j = await resp.json();
         const appts = j.appointments || [];
@@ -185,13 +199,14 @@ export default function ClinicPatients() {
               : 'Routine';
 
           const dateStr = formatAppointmentDate(a.appointment_date, a.appointment_time || a.time);
+          const petInfo = petsMap[a.pet_id] || { type: a.pet_type || 'Pet', breed: a.breed || '' };
 
           return {
             id: a.id,
             petId: a.pet_id,
             petName: a.pet_name || a.pet_id,
-            petType: a.pet_type || 'Pet',
-            breed: a.breed || '',
+            petType: petInfo.type,
+            breed: petInfo.breed,
             petOwner: a.owner_name || a.owner_id,
             diagnosis: a.reason || a.notes || '',
             visitType,
@@ -366,6 +381,28 @@ export default function ClinicPatients() {
         };
       });
     }
+  };
+
+  const getPetTypeLabel = (type: string) => {
+    if (!type) return '';
+    const t = type.toLowerCase().trim();
+    if (t === 'dog') return '🐶 Dog';
+    if (t === 'cat') return '🐱 Cat';
+    return '';
+  };
+
+  const getPetTypeDisplay = (petType: string, breed?: string) => {
+    const typeLabel = getPetTypeLabel(petType);
+    if (typeLabel && breed) {
+      return `${typeLabel} • ${breed}`;
+    }
+    if (typeLabel) {
+      return typeLabel;
+    }
+    if (breed) {
+      return breed;
+    }
+    return '';
   };
 
   // ---- Vaccine Management Functions ----
@@ -598,8 +635,8 @@ export default function ClinicPatients() {
                           <p className="font-semibold text-slate-900 dark:text-white">
                             {patient.petName}
                           </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {patient.petType} • {patient.breed}
+                          <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            {getPetTypeDisplay(patient.petType, patient.breed)}
                           </p>
                         </div>
                       </td>
@@ -805,7 +842,7 @@ export default function ClinicPatients() {
                       Pet Type
                     </p>
                     <p className="mt-1 font-medium text-slate-900 dark:text-white">
-                      {selectedPatient.petType}
+                      {getPetTypeLabel(selectedPatient.petType) || selectedPatient.petType}
                     </p>
                   </div>
                   <div>

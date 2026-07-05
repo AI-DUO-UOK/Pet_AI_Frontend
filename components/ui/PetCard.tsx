@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Calendar } from 'lucide-react';
+import { Calendar, PawPrint, Clock } from 'lucide-react';
 
 interface PetCardProps {
   id: string;
@@ -42,15 +42,22 @@ export function PetCard({
       </div>
 
       <div className="p-5 flex-1 flex flex-col">
-        <div className="flex justify-between items-start mb-2">
+        <div className="flex justify-between items-start mb-3">
           <h3 className="text-xl font-bold text-slate-900 dark:text-white">
             {name}
           </h3>
         </div>
 
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-          {breed} • {age}
-        </p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium">
+            <PawPrint className="w-3.5 h-3.5" />
+            {breed}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-medium">
+            <Clock className="w-3.5 h-3.5" />
+            {age}
+          </span>
+        </div>
 
         <div className="mt-auto space-y-3">
           {nextVaccine && (

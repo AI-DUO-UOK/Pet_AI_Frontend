@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Menu, Search, Sun, Moon } from 'lucide-react';
+import { Menu, Search, Sun, Moon, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationDropdown } from '../ui/NotificationDropdown';
@@ -28,6 +28,9 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const { theme, toggleTheme } = useTheme();
   const { user, role } = useAuth();
 
+  const isVerified = role === 'clinic' && user?.verificationStatus === 'approved';
+  const displayName = role === 'clinic' ? (user?.clinicName || user?.name) : user?.name?.split(' ')[0];
+
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between">
       <div className="flex items-center gap-4 flex-1">
@@ -42,7 +45,7 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
           <Search className="w-4 h-4 absolute left-3 text-slate-400" />
           <input
             type="text"
-            placeholder="Search pets, vets, or records..."
+            placeholder="Search pets, vets or records..."
             className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary-900/30 rounded-lg text-sm transition-all outline-none"
           />
         </div>
@@ -80,8 +83,19 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
             </div>
           )}
 
-          <span className="hidden sm:block text-sm font-medium text-slate-700 dark:text-slate-200">
-            {user?.name?.split(' ')[0] || 'User'}
+          <span className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+            {displayName || 'User'}
+            {isVerified && (
+              <span className="group relative inline-flex items-center">
+                <CheckCircle2 className="w-4 h-4 text-green-500 fill-green-500/10" />
+                <span className="absolute top-full right-0 mt-2 w-64 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg pointer-events-none whitespace-normal font-normal">
+                  <span className="font-semibold">Verified Clinic ✅</span>
+                  <br />
+                  Your clinic is now visible to pet owners and all features are unlocked.
+                  <span className="absolute bottom-full right-1 border-4 border-transparent border-b-slate-800" />
+                </span>
+              </span>
+            )}
           </span>
         </Link>
       </div>

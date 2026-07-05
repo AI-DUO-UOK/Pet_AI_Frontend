@@ -44,7 +44,6 @@ interface Review {
 export default function ClinicDashboard() {
   const { user } = useAuth();
   const clinicName = user?.clinicName || user?.name || 'Clinic';
-  const isVerified = user?.verificationStatus === 'approved';
   const isPending = user?.verificationStatus === 'pending';
   const isRejected = user?.verificationStatus === 'rejected';
 
@@ -249,24 +248,6 @@ export default function ClinicDashboard() {
         </motion.div>
       )}
 
-      {isVerified && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-4 p-4 border border-green-200 rounded-lg bg-green-50 dark:bg-green-900/20 dark:border-green-800"
-        >
-          <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="font-semibold text-green-900 dark:text-green-200">
-              Verified Clinic ✅
-            </h3>
-            <p className="mt-1 text-sm text-green-800 dark:text-green-300">
-              Your clinic is now visible to pet owners and all features are unlocked.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
@@ -452,14 +433,17 @@ export default function ClinicDashboard() {
                     className="p-4 border rounded-xl bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-primary-500/30 transition-all flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center"
                   >
                     <div>
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap text-sm text-slate-500 dark:text-slate-400">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Pet:</span>
+                        <span className="font-bold text-slate-900 dark:text-white">
                           {appt.pet_name}
                         </span>
+                        <span className="mx-1 text-slate-300 dark:text-slate-700">•</span>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Owner:</span>
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                           {appt.owner_name}
                         </span>
-                        <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getStatusStyle(appt.status)}`}>
+                        <span className={`px-2 py-0.5 text-xs font-bold rounded-full ml-1 ${getStatusStyle(appt.status)}`}>
                           {appt.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </div>
@@ -546,10 +530,10 @@ export default function ClinicDashboard() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          {rev.reviewer}
+                          Pet Owner: {rev.reviewer}
                         </span>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                          Pet: <strong>{rev.pet}</strong>
+                          Reviewed for Pet: <strong>{rev.pet}</strong>
                         </p>
                       </div>
                       <div className="flex gap-0.5">
@@ -574,7 +558,7 @@ export default function ClinicDashboard() {
                       "{rev.comment || 'No comment provided'}"
                     </p>
                     <p className="text-[9px] text-slate-400 mt-2 text-right">
-                      {new Date(rev.date).toLocaleDateString()}
+                      {rev.date ? new Date(rev.date).toLocaleDateString() : ''}
                     </p>
                   </div>
                 ))

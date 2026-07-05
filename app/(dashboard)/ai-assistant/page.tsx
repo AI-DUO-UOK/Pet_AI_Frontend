@@ -9,11 +9,10 @@ import {
   Bot,
   Send,
   Sparkles,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
   FileText,
+  XCircle,
   X,
+  PawPrint,
 } from 'lucide-react';
 import { useChatbotAPI } from '@/hooks/useChatbotAPI';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,6 +36,11 @@ interface Message {
   image?: {
     src: string;
     name: string;
+  };
+  document?: {
+    src: string;
+    name: string;
+    type?: string;
   };
   isAnalysis?: boolean;
   analysisData?: {
@@ -562,40 +566,18 @@ function AIAssistantContent() {
       setIsTyping(false);
 
       if (response) {
-        // Parse confidence to number
-        const confidence = Math.round(response.confidence * 100);
-
         const analysisMsg: Message = {
           id: Date.now().toString(),
           role: 'ai',
           content: response.explanation,
-          isAnalysis: true,
-          analysisData: {
-            condition: response.disease_class,
-            confidence,
-            actions: [
-              '🏥 Schedule a veterinary appointment for professional diagnosis',
-              '📸 Monitor your pet for any changes in symptoms',
-              '📝 Keep detailed notes about when symptoms started',
-            ],
-            dos: [
-              '✅ Take clear photos for your vet',
-              '✅ Track any behavior changes',
-              '✅ Keep your pet comfortable',
-            ],
-            donts: [
-              '❌ Do NOT self-diagnose or delay professional care',
-              '❌ Do NOT apply unproven treatments',
-              '❌ Do NOT delay seeking professional advice',
-            ],
-          },
         };
 
         setMessages((prev) => [...prev, analysisMsg]);
       }
-
+    } else if (selectedDocument) {
+      await handleSendDocument(text);
     } else {
-      // No image, use regular handleSend
+      // No image or document, use regular handleSend
       handleSend(text);
     }
   };
@@ -622,22 +604,31 @@ function AIAssistantContent() {
     setDocumentInputKey((prev) => prev + 1);
   };
 
-  const handleSendDocument = async () => {
+  const handleSendDocument = async (text: string = input) => {
     if (!session || !selectedDocument || isTyping || apiLoading) return;
 
+    const promptText = text.trim();
     const newUserMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: '📄 Uploaded a medical document for analysis',
+      content: promptText || '📄 Uploaded a medical document for analysis',
+      document: documentPreview
+        ? {
+            src: documentPreview,
+            name: selectedDocument.name,
+            type: selectedDocument.type,
+          }
+        : undefined,
     };
 
     setMessages((prev) => [...prev, newUserMsg]);
+    setInput('');
     setSelectedDocument(null);
     setDocumentPreview(null);
     setDocumentInputKey((prev) => prev + 1);
     setIsTyping(true);
 
-    const response = await uploadDocument(session.session_id, selectedDocument);
+    const response = await uploadDocument(session.session_id, selectedDocument, promptText);
 
     setIsTyping(false);
 
@@ -653,7 +644,7 @@ function AIAssistantContent() {
   };
 
   return (
-    <div className="space-y-6 flex flex-col h-[calc(100vh-200px)]">
+    <div className="space-y-6 flex flex-col h-[calc(100vh-110px)] sm:h-[calc(100vh-125px)] lg:h-[calc(100vh-140px)]">
       {/* Pet Selector Modal */}
       {showPetSelector && (
         <motion.div
@@ -797,44 +788,75 @@ function AIAssistantContent() {
       )}
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Bot className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-          AI Health Assistant
-          {session && selectedPet && (
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Bot className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            AI Pet Health Assistant
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            Get trusted AI guidance for your pet's health, care, nutrition, vaccinations and more.
+          </p>
+        </div>
+        
+        {session && selectedPet && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-semibold border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden pr-3">
+              <img
+                src={getPetImageUrl(selectedPet)}
+                alt={selectedPet.name}
+                className="w-12 h-12 object-cover flex-shrink-0"
+              />
+              <div className="flex flex-col py-1">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold leading-none mb-0.5">Active Pet</span>
+                <span className="text-sm font-bold text-slate-800 dark:text-white leading-tight">{selectedPet.name}</span>
+              </div>
+            </div>
             <button
               onClick={() => setShowPetSelector(true)}
-              className="text-sm ml-auto px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors flex items-center gap-1.5 font-medium border border-slate-200 dark:border-slate-700"
+              className="text-xs px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-all font-semibold shadow-sm hover:shadow-md h-fit"
             >
-              <span>🐾 {selectedPet.name}</span>
-              <span className="text-xs text-slate-400">(Change)</span>
+              Change
             </button>
-          )}
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Describe your pet's symptoms for instant AI-powered insights
-        </p>
+          </div>
+        )}
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 overflow-y-auto shadow-sm flex flex-col">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="text-center space-y-6">
-              <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto">
-                <Sparkles className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+            <div className="text-center space-y-6 max-w-lg mx-auto">
+              <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-50 dark:from-primary-900/40 dark:to-primary-800/20 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-primary-200/50 dark:shadow-primary-900/30">
+                <Sparkles className="w-9 h-9 text-primary-600 dark:text-primary-400" />
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                  How can I help your pet today?
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                  {!session
-                    ? "Please select a pet to start a personalized chat session."
-                    : "Describe your pet's symptoms or ask any health-related questions"
-                  }
-                </p>
-              </div>
+              {!session ? (
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                    Welcome to AI Pet Health Assistant
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Please select a pet to start a personalized chat session.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-50 to-primary-100/50 dark:from-primary-900/20 dark:to-primary-800/10 rounded-full border border-primary-200/60 dark:border-primary-800/40 shadow-sm">
+                    <PawPrint className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                    <span className="text-sm font-semibold text-primary-800 dark:text-primary-300">
+                      Welcome back{selectedPet ? `, ${selectedPet.name}` : ''}!
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">
+                      How can I help your pet today?
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Describe your pet's symptoms or ask any health-related questions
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {!session ? (
                 <button
@@ -866,121 +888,112 @@ function AIAssistantContent() {
         ) : (
           <>
             <div className="space-y-4 flex-1">
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`${
-                      msg.role === 'user'
-                        ? 'max-w-lg bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3'
-                        : 'w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl rounded-tl-sm px-6 py-4'
-                    }`}
+              {messages.map((msg, index) => {
+                const isWelcome = msg.role === 'ai' && index === 0;
+                
+                if (isWelcome) {
+                  const cleanContent = msg.content.replace(/^🐾\s*/, '').replace(/^✅\s*/, '');
+                  const parts = cleanContent.split('\n\n');
+                  const hasMultipleParts = parts.length > 1;
+                  const title = hasMultipleParts ? parts[0] : 'Welcome back!';
+                  const description = hasMultipleParts ? parts.slice(1).join('\n\n') : parts[0];
+                  
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start w-full"
+                    >
+                      <div className="w-full bg-gradient-to-br from-primary-50/50 to-primary-100/30 dark:from-slate-800/50 dark:to-slate-900/50 border border-primary-100/50 dark:border-slate-700/50 rounded-2xl p-6 shadow-sm flex items-start gap-4 transition-all hover:shadow-md">
+                        <div className="p-3 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full flex-shrink-0">
+                          <PawPrint className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div className="space-y-2 flex-1">
+                          <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                            {title}
+                          </h3>
+                          <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            <ReactMarkdown 
+                              components={MarkdownComponents}
+                              remarkPlugins={[remarkGfm]}
+                            >
+                              {description}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {msg.role === 'ai' ? (
-                      <div className="w-full">
-                        <ReactMarkdown 
-                          components={MarkdownComponents}
-                          remarkPlugins={[remarkGfm]}
-                        >
-                          {msg.content || (streamingMessageId === msg.id ? '▌' : '')}
-                        </ReactMarkdown>
-                        {streamingMessageId === msg.id && msg.content && (
-                          <span className="cursor-blink text-base">▌</span>
-                        )}
-                        
-                        {/* RAG Indicator */}
-                        {msg.used_rag && (
-                          <div className="mt-3 pt-3 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <span>🔍</span> Information from knowledge base
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {msg.image && (
-                          <img
-                            src={msg.image.src}
-                            alt={msg.image.name}
-                            className="max-h-64 w-auto max-w-full rounded-xl object-contain"
-                          />
-                        )}
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      </div>
-                    )}
-
-                    {msg.isAnalysis && msg.analysisData && (
-                      <div className="mt-4 space-y-3 pt-3 border-t border-current border-opacity-20">
-                        <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3">
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-sm flex items-center gap-2">
-                              <span>🔬</span> {msg.analysisData.condition}
-                            </h4>
-                            <span className="text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-1 rounded">
-                              {msg.analysisData.confidence}% confidence
-                            </span>
-                          </div>
-
-                          {/* Recommended Actions */}
-                          <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                              <span>🎯</span> Recommended Actions
-                            </h5>
-                            {msg.analysisData.actions.map((action, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-xs">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                                <span>{action}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* DO's */}
-                          <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                              <span>✅</span> DO's
-                            </h5>
-                            {msg.analysisData.dos.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-xs">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* DON'Ts */}
-                          <div className="mt-3 space-y-2">
-                            <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase flex items-center gap-1">
-                              <span>❌</span> DON'Ts
-                            </h5>
-                            {msg.analysisData.donts.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-xs">
-                                <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-                                <span>{item}</span>
-                              </div>
-                            ))}
-                          </div>
+                    <div
+                      className={`${
+                        msg.role === 'user'
+                          ? 'max-w-lg bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3'
+                          : 'w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-2xl rounded-tl-sm px-6 py-4'
+                      }`}
+                    >
+                      {msg.role === 'ai' ? (
+                        <div className="w-full">
+                          <ReactMarkdown 
+                            components={MarkdownComponents}
+                            remarkPlugins={[remarkGfm]}
+                          >
+                            {msg.content || (streamingMessageId === msg.id ? '▌' : '')}
+                          </ReactMarkdown>
+                          {streamingMessageId === msg.id && msg.content && (
+                            <span className="cursor-blink text-base">▌</span>
+                          )}
                         </div>
-
-                        <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg p-3 flex items-start gap-2 text-xs">
-                          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                          <span>
-                            ⚠️ This is an AI analysis. For professional diagnosis, please consult a veterinarian.
-                          </span>
+                      ) : (
+                        <div className="space-y-3">
+                          {msg.image && (
+                            <img
+                              src={msg.image.src}
+                              alt={msg.image.name}
+                              className="max-h-64 w-auto max-w-full rounded-xl object-contain"
+                            />
+                          )}
+                          {msg.document && (
+                            <div className="mb-2 p-2 bg-slate-900/10 dark:bg-white/10 rounded-lg flex items-center gap-3 border border-slate-900/20 dark:border-white/20 max-w-sm text-left">
+                              {msg.document.src ? (
+                                <img
+                                  src={msg.document.src}
+                                  alt={msg.document.name}
+                                  className="w-10 h-10 object-cover rounded border border-slate-900/30 dark:border-white/30 flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded bg-white/20 flex items-center justify-center text-white flex-shrink-0">
+                                  <FileText className="w-6 h-6" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold text-white dark:text-slate-100 truncate">
+                                  {msg.document.name}
+                                </p>
+                                <p className="text-[10px] text-primary-100 dark:text-slate-400">
+                                  Medical Document
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {msg.used_rag && msg.role === 'ai' && !msg.isAnalysis && (
-                      <div className="mt-2 text-xs opacity-70 flex items-center gap-1">
-                        <span>🔍</span> Knowledge base used
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
 
             {isTyping && (
@@ -1061,19 +1074,15 @@ function AIAssistantContent() {
             <div className="flex-1 flex flex-col justify-between">
               <div>
                 <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-1">
-                  📄 Medical Document Selected
+                  📄 Document Selected
                 </p>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   {selectedDocument?.name}
                 </p>
               </div>
-              <button
-                onClick={handleSendDocument}
-                disabled={!session || isTyping || apiLoading}
-                className="self-start px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs rounded-lg font-medium transition-colors"
-              >
-                Analyze Document
-              </button>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ready to analyze when you send
+              </p>
             </div>
           </motion.div>
         )}
@@ -1094,9 +1103,9 @@ function AIAssistantContent() {
               onClick={() => imageInputRef.current?.click()}
               disabled={!session || isTyping || apiLoading || selectedImage !== null || selectedDocument !== null}
               title="Upload Image"
-              className="px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors flex items-center justify-center"
+              className="h-[44px] min-w-[44px] px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors flex items-center justify-center flex-shrink-0"
             >
-              <span className="text-xl">+</span>
+              <span className="text-xl leading-none">+</span>
             </button>
 
             {/* Upload Document Button */}
@@ -1112,29 +1121,48 @@ function AIAssistantContent() {
               onClick={() => documentInputRef.current?.click()}
               disabled={!session || isTyping || apiLoading || selectedImage !== null || selectedDocument !== null}
               title="Upload Medical Document"
-              className="px-4 py-3 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 dark:text-blue-400 rounded-xl font-medium transition-colors flex items-center justify-center gap-1.5 text-sm"
+              className="h-[44px] px-3 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 dark:text-blue-400 rounded-xl font-medium transition-colors flex items-center justify-center gap-1.5 text-sm flex-shrink-0"
             >
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Document</span>
             </button>
 
-            {/* Text Input */}
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendWithImage()}
-              placeholder={selectedImage ? "Add a prompt for the image..." : "Describe your pet's symptoms..."}
-              disabled={!session || isTyping || apiLoading}
-              className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            />
+            {/* Text Input - auto-growing textarea */}
+            <div className="flex-1 self-stretch flex flex-col justify-end min-h-[44px]">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (input.trim() || selectedImage || selectedDocument) handleSendWithImage();
+                  }
+                }}
+                placeholder={
+                  selectedImage 
+                    ? "Add a prompt for the image..." 
+                    : selectedDocument 
+                    ? "Add a prompt for the document..." 
+                    : "Ask anything about your pet's health or describe a concern..."
+                }
+                disabled={!session || isTyping || apiLoading}
+                rows={1}
+                className="w-full px-4 py-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-50 disabled:cursor-not-allowed resize-none overflow-y-auto min-h-[44px] max-h-[132px]"
+                style={{ height: 'auto' }}
+                onInput={(e) => {
+                  const target = e.currentTarget;
+                  target.style.height = 'auto';
+                  target.style.height = Math.min(target.scrollHeight, 132) + 'px';
+                }}
+              />
+            </div>
           </div>
 
           {/* Send Button */}
           <button
             onClick={() => handleSendWithImage()}
-            disabled={(!input.trim() && !selectedImage) || !session || isTyping || apiLoading}
-            className="px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center gap-2 shadow-sm shadow-primary-600/20"
+            disabled={(!input.trim() && !selectedImage && !selectedDocument) || !session || isTyping || apiLoading}
+            className="h-[44px] px-5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center justify-center flex-shrink-0 shadow-sm shadow-primary-600/20"
           >
             <Send className="w-4 h-4" />
           </button>

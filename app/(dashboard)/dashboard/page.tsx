@@ -27,6 +27,13 @@ const DEFAULT_SUMMARY = {
 
 // Recent activity will be populated from appointments; start empty.
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 16) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const firstName = user?.name?.split(' ')[0] || 'there';
@@ -171,7 +178,7 @@ export default function Dashboard() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Good morning, {firstName}! 🐾
+            {getGreeting()}, {firstName}! 
           </h1>
           <p className="mt-1 text-slate-500 dark:text-slate-400">
             Here's what's happening with your furry friends today.
@@ -336,15 +343,15 @@ export default function Dashboard() {
               <Dog className="w-24 h-24" />
             </div>
             <div className="relative z-10">
-              <h3 className="mb-2 text-lg font-bold">Try AI Health Check</h3>
+              <h3 className="mb-2 text-lg font-bold">Try AI Pet Health Assistant</h3>
               <p className="mb-4 text-sm leading-relaxed text-primary-100">
-                Describe your pet's symptoms or upload a photo for instant AI-powered health insights.
+                Ask questions about your pet's health, symptoms, vaccinations, nutrition and general care. Get AI-powered guidance based on trusted veterinary knowledge.
               </p>
               <Link
                 href="/ai-assistant"
                 className="inline-block px-4 py-2 text-sm font-medium transition-colors bg-white rounded-lg text-primary-600 hover:bg-primary-50"
               >
-                Start Checkup
+                Start Chat
               </Link>
             </div>
           </div>
