@@ -11,7 +11,6 @@ import {
   LogOut,
   X,
   Menu,
-  Dog,
 } from 'lucide-react';
 
 export default function AdminLayout({
