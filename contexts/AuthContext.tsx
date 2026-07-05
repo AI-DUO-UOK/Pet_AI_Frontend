@@ -171,6 +171,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('Error fetching pet owner profile in AuthContext:', ownerError);
         }
 
+        // Fallback: If client-side query returns null, check via backend API to bypass RLS/cache issues
+        if (!owner && !ownerError) {
+          console.log('Owner profile not found via client-side query. Trying backend fallback...');
+          try {
+            const data = await apiFetch('/api/auth/profile');
+            if (data && data.success && data.role === 'owner') {
+              owner = data.profile;
+              console.log('Owner profile successfully resolved via backend fallback.');
+            }
+          } catch (err) {
+            console.error('Error in owner profile backend fallback:', err);
+          }
+        }
+
         if (!owner && !ownerError) {
           // Silently create the pet_owners record via the backend API
           console.log('Pet owner profile missing. Silently creating one via backend...');

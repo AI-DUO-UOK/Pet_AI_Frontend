@@ -441,17 +441,31 @@ export default function PetOwnerProfilePage() {
         dataPayload.append('photo', avatarFile);
       }
 
+      console.log('Submitting profile dataPayload:', {
+        user_id: user.id,
+        full_name: formData.full_name,
+        phone: formData.phone,
+        bio: formData.bio,
+        address: formData.address,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+      });
+
       const response = await apiFetch('/api/auth/profile', {
         method: 'PUT',
         body: dataPayload,
       });
 
+      console.log('Profile update raw response:', response);
+
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Failed to update profile: ${errText}`);
+        throw new Error(`Failed to update profile (HTTP ${response.status}): ${errText}`);
       }
 
       const data = await response.json();
+      console.log('Profile update response JSON data:', data);
+
       if (data.success && data.profile) {
         const updatedProf: OwnerProfile = data.profile;
         setProfile(updatedProf);
@@ -463,8 +477,12 @@ export default function PetOwnerProfilePage() {
         setAvatarFile(null);
         setIsEditing(false);
         setTimeout(() => setSuccessMsg(null), 4000);
+      } else {
+        console.error('Update failed according to backend JSON:', data);
+        throw new Error(data.error || 'Backend failed to update profile details.');
       }
     } catch (err) {
+      console.error('Profile update catch block:', err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSaving(false);
