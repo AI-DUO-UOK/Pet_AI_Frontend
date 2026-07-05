@@ -396,7 +396,7 @@ function ClinicDetailsModal({
             <div className="p-4 flex-1 overflow-y-auto flex items-center justify-center bg-slate-100 dark:bg-slate-950 min-h-[50vh]">
               {isPdf ? (
                 <iframe
-                  src={clinic.license_document_url}
+                  src={clinic.license_document_url || undefined}
                   className="w-full h-[70vh] border-0 rounded-lg bg-white"
                   title="Verification Document PDF Viewer"
                 />

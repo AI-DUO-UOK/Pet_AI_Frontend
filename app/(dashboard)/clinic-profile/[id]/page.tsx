@@ -84,6 +84,8 @@ interface Clinic {
     comment: string;
     date: string;
   }>;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 }
 
 interface ClinicExtras {
