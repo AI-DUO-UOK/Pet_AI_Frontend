@@ -310,7 +310,7 @@ export default function ClinicProfile() {
 
   const loadClinicExtras = (): ClinicExtras => {
     try {
-      const stored = localStorage.getItem('clinicProfileExtras');
+      const stored = localStorage.getItem(`clinicProfileExtras_${clinicId}`);
       if (!stored) return {};
 
       const parsed = JSON.parse(stored);

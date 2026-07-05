@@ -88,6 +88,28 @@ type DoctorInfo = {
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=1200&h=800&fit=crop';
 
+const SUGGESTED_SERVICES = [
+  'General Checkup',
+  'Vaccination',
+  'Emergency Consultation',
+  'Surgery Consultation',
+  'Dental Checkup',
+  'Grooming',
+  'Deworming',
+  'Microchipping',
+];
+
+const SUGGESTED_FACILITIES = [
+  'X-Ray',
+  'Ultrasound',
+  'Surgery Suite',
+  'Dental Equipment',
+  'Laboratory',
+  'Pharmacy',
+  'Pet Boarding',
+  'Grooming Station',
+];
+
 const formatDoctorName = (name: string) => {
   const trimmed = name.trim();
   if (!trimmed) return '';
@@ -320,7 +342,8 @@ export default function ClinicProfilePage() {
         const dbDoctorNames = [leadVet, ...team].map(formatDoctorName).filter(Boolean);
         const dbServices = specialties;
 
-        const savedExtra = localStorage.getItem('clinicProfileExtras');
+        const storageKey = `clinicProfileExtras_${clinic.id}`;
+        const savedExtra = localStorage.getItem(storageKey);
         let initialServices = dbServices;
         let initialFacilities: string[] = [];
         let initialDoctors: DoctorInfo[] = dbDoctorNames.map(name => ({
@@ -349,7 +372,7 @@ export default function ClinicProfilePage() {
           }
         } else {
           localStorage.setItem(
-            'clinicProfileExtras',
+            storageKey,
             JSON.stringify({ services: dbServices, facilities: [], doctors: initialDoctors })
           );
         }
@@ -638,8 +661,9 @@ export default function ClinicProfilePage() {
   };
 
   const persistExtras = (nextServices = services, nextFacilities = facilities, nextDoctors = doctors) => {
+    if (!profile?.id) return;
     localStorage.setItem(
-      'clinicProfileExtras',
+      `clinicProfileExtras_${profile.id}`,
       JSON.stringify({ services: nextServices, facilities: nextFacilities, doctors: nextDoctors })
     );
   };
@@ -1047,7 +1071,7 @@ export default function ClinicProfilePage() {
                 />
               ) : (
                 <p className="leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-line">
-                  {profile?.description || 'No clinic description has been provided yet.'}
+                  {getRawDescription(profile?.description || '') || 'No clinic description has been provided yet.'}
                 </p>
               )}
             </div>
@@ -1133,22 +1157,52 @@ export default function ClinicProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Services</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {services.map((service) => (
-              <div key={service} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                <p className="text-sm font-medium text-slate-900 dark:text-white">{service}</p>
-                {isEditing && (
-                  <button type="button" onClick={() => removeService(service)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
-                )}
-              </div>
-            ))}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Services</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {services.length > 0 ? (
+                services.map((service) => (
+                  <div key={service} className="flex items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{service}</p>
+                    {isEditing && (
+                      <button type="button" onClick={() => removeService(service)} className="text-red-500 hover:text-red-600"><X className="w-4 h-4" /></button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center border border-dashed rounded-xl border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 col-span-2 flex flex-col items-center justify-center">
+                  <span className="font-semibold text-slate-700 dark:text-slate-350">Add your services</span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Click "Edit Profile" to define the services you offer.</p>
+                </div>
+              )}
+            </div>
           </div>
           {isEditing && (
-            <div className="flex gap-2 mt-4">
-              <input value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addService()} placeholder="Add service..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white" />
-              <button type="button" onClick={addService} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+              <div className="flex gap-2">
+                <input value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addService()} placeholder="Add service..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20" />
+                <button type="button" onClick={addService} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Click to quick-add suggested services:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SUGGESTED_SERVICES.filter(svc => !services.includes(svc)).map(svc => (
+                    <button
+                      key={svc}
+                      type="button"
+                      onClick={() => {
+                        const next = [...services, svc];
+                        setServices(next);
+                        persistExtras(next, facilities, doctors);
+                      }}
+                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-primary-50 dark:bg-slate-800/40 dark:hover:bg-primary-950/20 text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                    >
+                      + {svc}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1203,17 +1257,45 @@ export default function ClinicProfilePage() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Facilities</h2>
         <div className="flex flex-wrap gap-2">
-          {facilities.map((facility) => (
-            <span key={facility} className="inline-flex items-center gap-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full font-medium">
-              {facility}
-              {isEditing && <button type="button" onClick={() => removeFacility(facility)} className="hover:text-blue-900 dark:hover:text-blue-200"><X className="w-3.5 h-3.5" /></button>}
-            </span>
-          ))}
+          {facilities.length > 0 ? (
+            facilities.map((facility) => (
+              <span key={facility} className="inline-flex items-center gap-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full font-medium">
+                {facility}
+                {isEditing && <button type="button" onClick={() => removeFacility(facility)} className="hover:text-blue-900 dark:hover:text-blue-200"><X className="w-3.5 h-3.5" /></button>}
+              </span>
+            ))
+          ) : (
+            <div className="py-8 text-center border border-dashed rounded-xl border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 w-full flex flex-col items-center justify-center">
+              <span className="font-semibold text-slate-700 dark:text-slate-350">Add your facilities</span>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Click "Edit Profile" to specify clinic equipment and facilities.</p>
+            </div>
+          )}
         </div>
         {isEditing && (
-          <div className="flex gap-2 mt-4">
-            <input value={newFacility} onChange={(e) => setNewFacility(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFacility()} placeholder="Add facility..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white" />
-            <button type="button" onClick={addFacility} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+            <div className="flex gap-2">
+              <input value={newFacility} onChange={(e) => setNewFacility(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFacility()} placeholder="Add facility..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20" />
+              <button type="button" onClick={addFacility} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Click to quick-add suggested facilities:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {SUGGESTED_FACILITIES.filter(fac => !facilities.includes(fac)).map(fac => (
+                  <button
+                    key={fac}
+                    type="button"
+                    onClick={() => {
+                      const next = [...facilities, fac];
+                      setFacilities(next);
+                      persistExtras(services, next, doctors);
+                    }}
+                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-primary-50 dark:bg-slate-800/40 dark:hover:bg-primary-950/20 text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                  >
+                    + {fac}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
