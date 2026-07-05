@@ -58,6 +58,8 @@ function ClinicDetailsModal({
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+  const isPdf = clinic.license_document_url ? clinic.license_document_url.split(/[?#]/)[0].toLowerCase().endsWith('.pdf') : false;
+  const clinicStatus = clinic.verification_status || (clinic.is_rejected ? 'rejected' : clinic.is_verified ? 'approved' : 'pending');
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -136,7 +138,7 @@ function ClinicDetailsModal({
               License / Registration Document
             </p>
             {clinic.license_document_url ? (
-              clinic.license_document_url.toLowerCase().endsWith('.pdf') ? (
+              isPdf ? (
                 <div
                   onClick={() => setShowDocumentPreview(true)}
                   className="flex flex-col items-center justify-center p-6 border border-dashed rounded-2xl bg-slate-50 hover:bg-slate-100/70 dark:bg-slate-800/40 dark:hover:bg-slate-800/60 border-slate-300 dark:border-slate-700 cursor-pointer transition-all h-56 space-y-3 group"
@@ -277,20 +279,22 @@ function ClinicDetailsModal({
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Select Action:
             </p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setAction('approve')}
-                className={`px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                  action === 'approve'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-800'
-                }`}
-              >
-                <CheckCircle className="w-4 h-4" />
-                Approve
-              </motion.button>
+            <div className={`grid gap-3 ${clinicStatus === 'approved' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+              {clinicStatus !== 'approved' && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setAction('approve')}
+                  className={`px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                    action === 'approve'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-800'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approve
+                </motion.button>
+              )}
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -368,7 +372,7 @@ function ClinicDetailsModal({
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                {clinic.license_document_url?.toLowerCase().endsWith('.pdf') ? 'License Verification Document (PDF)' : 'License Verification Document (Image)'}
+                {isPdf ? 'License Verification Document (PDF)' : 'License Verification Document (Image)'}
               </h3>
               <div className="flex items-center gap-2">
                 <a
@@ -390,7 +394,7 @@ function ClinicDetailsModal({
             
             {/* Modal Body */}
             <div className="p-4 flex-1 overflow-y-auto flex items-center justify-center bg-slate-100 dark:bg-slate-950 min-h-[50vh]">
-              {clinic.license_document_url?.toLowerCase().endsWith('.pdf') ? (
+              {isPdf ? (
                 <iframe
                   src={clinic.license_document_url}
                   className="w-full h-[70vh] border-0 rounded-lg bg-white"
