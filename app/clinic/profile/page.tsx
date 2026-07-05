@@ -1225,8 +1225,8 @@ export default function ClinicProfilePage() {
             <div key={review.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{review.reviewer}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Pet: <strong>{review.pet}</strong></p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Pet Owner: {review.reviewer}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Reviewed for Pet: <strong>{review.pet}</strong></p>
                 </div>
                 <div className="flex gap-0.5">
                   {[...Array(5)].map((_, i) => (
@@ -1240,7 +1240,9 @@ export default function ClinicProfilePage() {
               {review.comment && (
                 <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-300">"{review.comment}"</p>
               )}
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2.5">{review.date}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2.5">
+                {review.date ? new Date(review.date).toLocaleDateString() : ''}
+              </p>
             </div>
           )) : (
             <p className="py-6 text-sm text-center text-slate-500 dark:text-slate-400">No client reviews yet. Reviews will appear here after pet owners review completed channels.</p>

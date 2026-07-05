@@ -754,9 +754,9 @@ export default function ClinicProfile() {
             >
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{review.reviewer}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Pet Owner: {review.reviewer}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Pet: <strong>{review.pet}</strong>
+                    Reviewed for Pet: <strong>{review.pet}</strong>
                   </p>
                 </div>
                 <div className="flex gap-0.5">
@@ -778,7 +778,9 @@ export default function ClinicProfile() {
               {review.comment && (
                 <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-300">"{review.comment}"</p>
               )}
-              <p className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">{review.date}</p>
+              <p className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
+                {review.date ? new Date(review.date).toLocaleDateString() : ''}
+              </p>
             </div>
           )) : (
             <p className="py-6 text-sm text-center text-slate-500 dark:text-slate-400">No client reviews yet.</p>

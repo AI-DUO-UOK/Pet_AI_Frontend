@@ -530,10 +530,10 @@ export default function ClinicDashboard() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          {rev.reviewer}
+                          Pet Owner: {rev.reviewer}
                         </span>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                          Pet: <strong>{rev.pet}</strong>
+                          Reviewed for Pet: <strong>{rev.pet}</strong>
                         </p>
                       </div>
                       <div className="flex gap-0.5">
@@ -558,7 +558,7 @@ export default function ClinicDashboard() {
                       "{rev.comment || 'No comment provided'}"
                     </p>
                     <p className="text-[9px] text-slate-400 mt-2 text-right">
-                      {new Date(rev.date).toLocaleDateString()}
+                      {rev.date ? new Date(rev.date).toLocaleDateString() : ''}
                     </p>
                   </div>
                 ))
