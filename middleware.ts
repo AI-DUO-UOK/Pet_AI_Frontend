@@ -14,18 +14,6 @@ const publicRoutes = [
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   
-  // Allow static assets (images, icons, etc.) to load without auth
-  if (
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.jpg') ||
-    pathname.endsWith('.jpeg') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.ico') ||
-    pathname.endsWith('.webp')
-  ) {
-    return NextResponse.next();
-  }
-
   // Allow root page and public assets/routes
   if (pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.next();

@@ -12,9 +12,6 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'Dr. Paw - Pet Health Management',
   description: 'Manage your pet\'s health records, vaccinations, and find veterinarians',
-  icons: {
-    icon: '/Light_Mode_Logo.png',
-  },
 };
 
 export default function RootLayout({

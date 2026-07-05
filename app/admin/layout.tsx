@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import {
   LayoutDashboard,
   Building2,
@@ -20,7 +19,6 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { role, isAuthenticated, logout } = useAuth();
-  const { theme } = useTheme();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -50,12 +48,9 @@ export default function AdminLayout({
       >
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center">
-            <img 
-              src={theme === 'dark' ? '/Sidebar_Dark.png' : '/Sidebar_Light.png'} 
-              alt="PetPulse Logo" 
-              className="h-12 w-auto object-contain"
-            />
+          <div className="flex items-center gap-2 text-primary-600 dark:text-primary-400 font-bold text-xl">
+            <Dog className="w-6 h-6" />
+            <span>Dr. Paw</span>
           </div>
           <button
             onClick={() => setIsSidebarOpen(false)}

@@ -4,7 +4,6 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import {
   LayoutDashboard,
   Dog,
@@ -23,7 +22,6 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const { role, logout } = useAuth();
-  const { theme } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -62,12 +60,9 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       >
         {/* Logo area */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center">
-            <img 
-              src={theme === 'dark' ? '/Sidebar_Dark.png' : '/Sidebar_Light.png'} 
-              alt="PetPulse Logo" 
-              className="h-12 w-auto object-contain"
-            />
+          <div className="flex items-center gap-2 text-xl font-bold text-primary-600 dark:text-primary-400">
+            <Dog className="w-6 h-6" />
+            <span>PetPulse</span>
           </div>
           <button
             onClick={handleClose}
