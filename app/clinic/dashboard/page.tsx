@@ -530,10 +530,10 @@ export default function ClinicDashboard() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          Pet Owner: {rev.reviewer}
+                          Reviewed by: {rev.reviewer}
                         </span>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                          Reviewed for Pet: <strong>{rev.pet}</strong>
+                          Pet: <strong>{rev.pet}</strong>
                         </p>
                       </div>
                       <div className="flex gap-0.5">
@@ -551,7 +551,7 @@ export default function ClinicDashboard() {
                     </div>
                     {rev.treatment && (
                       <p className="text-xs font-semibold text-primary-600 dark:text-primary-400 mb-1">
-                        Treatment: {rev.treatment}
+                        Treatment quality: {rev.treatment}
                       </p>
                     )}
                     <p className="text-xs text-slate-600 dark:text-slate-300 italic">

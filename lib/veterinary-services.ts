@@ -16,33 +16,48 @@ export interface VeterinaryService {
 
 export const VETERINARY_SERVICES: VeterinaryService[] = [
   {
-    name: 'General Checkup',
+    name: 'General Consultation',
     price: 2500,
     description: 'Routine physical examination and health assessment',
   },
   {
     name: 'Vaccination',
-    price: 1800,
+    price: 2000,
     description: 'Standard vaccination shots and boosters',
   },
   {
-    name: 'Emergency Consultation',
-    price: 5000,
-    description: 'Urgent care for critical conditions',
+    name: 'Follow-up Consultation',
+    price: 1500,
+    description: 'Review of progress or treatment adjustments',
   },
   {
-    name: 'Surgery Consultation',
-    price: 6500,
-    description: 'Pre-surgical assessment and planning',
+    name: 'Puppy / Kitten Health Check',
+    price: 2000,
+    description: 'Early development health assessment and guidance',
   },
   {
-    name: 'Dental Checkup',
+    name: 'Skin & Allergy Consultation',
     price: 3000,
-    description: 'Oral health examination and cleaning',
+    description: 'Dermatological evaluation for allergies and infections',
+  },
+  {
+    name: 'Eye & Ear Consultation',
+    price: 3000,
+    description: 'Detailed examination for vision, ocular or hearing issues',
+  },
+  {
+    name: 'Dental Consultation',
+    price: 3000,
+    description: 'Oral health examination and dental cleaning assessment',
+  },
+  {
+    name: 'Deworming & Preventive Care',
+    price: 1800,
+    description: 'Parasite control treatment and wellness care',
   },
   {
     name: 'Grooming',
-    price: 2800,
+    price: 2500,
     description: 'Full grooming session including bath and trim',
   },
 ];

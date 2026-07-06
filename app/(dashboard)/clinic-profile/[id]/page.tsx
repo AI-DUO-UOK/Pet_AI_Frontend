@@ -756,9 +756,9 @@ export default function ClinicProfile() {
             >
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">Pet Owner: {review.reviewer}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Reviewed by: {review.reviewer}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Reviewed for Pet: <strong>{review.pet}</strong>
+                    Pet: <strong>{review.pet}</strong>
                   </p>
                 </div>
                 <div className="flex gap-0.5">
@@ -775,7 +775,7 @@ export default function ClinicProfile() {
                 </div>
               </div>
               <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                Treatment: <span className="font-normal text-slate-600 dark:text-slate-400">{review.treatment || 'General care'}</span>
+                Treatment quality: <span className="font-normal text-slate-600 dark:text-slate-400">{review.treatment || 'General care'}</span>
               </p>
               {review.comment && (
                 <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-300">"{review.comment}"</p>
