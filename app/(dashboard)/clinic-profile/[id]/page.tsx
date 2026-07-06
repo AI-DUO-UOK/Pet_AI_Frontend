@@ -76,6 +76,8 @@ interface Clinic {
   photos?: string[];
   clinic_logo_url?: string | null;
   gallery_urls?: string[];
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   clinicReviews?: Array<{
     id: string;
     reviewer: string;

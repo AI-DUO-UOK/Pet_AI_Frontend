@@ -9,8 +9,6 @@ import {
   Bot,
   Send,
   Sparkles,
-  AlertCircle,
-  CheckCircle2,
   XCircle,
   FileText,
   X,
