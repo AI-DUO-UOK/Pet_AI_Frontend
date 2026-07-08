@@ -60,9 +60,17 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       >
         {/* Logo area */}
         <div className="flex items-center justify-between h-16 px-6 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2 text-xl font-bold text-primary-600 dark:text-primary-400">
-            <Dog className="w-6 h-6" />
-            <span>PetPulse</span>
+          <div className="flex items-center">
+            <img 
+              src="/images/dashboard-logo-light.png" 
+              alt="PetPulse Logo" 
+              className="h-12 w-auto object-contain block dark:hidden" 
+            />
+            <img 
+              src="/images/dashboard-logo-dark.png" 
+              alt="PetPulse Logo" 
+              className="h-12 w-auto object-contain hidden dark:block" 
+            />
           </div>
           <button
             onClick={handleClose}

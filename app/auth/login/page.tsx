@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Dog, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { GoogleButton } from '@/components/auth/GoogleButton';
 import { motion } from 'framer-motion';
@@ -110,9 +110,16 @@ export default function LoginPage() {
       >
         <div className="p-8">
           <div className="flex justify-center mb-8">
-            <div className="flex items-center justify-center w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl text-primary-600 dark:text-primary-400">
-              <Dog className="w-8 h-8" />
-            </div>
+            <img 
+              src="/images/login-logo-light.png" 
+              alt="PetPulse Logo" 
+              className="h-32 w-auto object-contain block dark:hidden" 
+            />
+            <img 
+              src="/images/login-logo-dark.png" 
+              alt="PetPulse Logo" 
+              className="h-32 w-auto object-contain hidden dark:block" 
+            />
           </div>
 
           <h2 className="mb-2 text-2xl font-bold text-center text-slate-900 dark:text-white">
