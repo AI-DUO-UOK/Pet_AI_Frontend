@@ -413,6 +413,14 @@ export default function PetOwnerProfilePage() {
     e.preventDefault();
     if (!user?.id) return;
 
+    if (formData.phone) {
+      const digitsOnly = formData.phone.replace(/[^\d]/g, '');
+      if (digitsOnly.length !== 10) {
+        setError('Please enter a valid 10-digit phone number.');
+        return;
+      }
+    }
+
     try {
       setIsSaving(true);
       setError(null);
@@ -602,7 +610,12 @@ export default function PetOwnerProfilePage() {
                       type="tel"
                       disabled={!isEditing}
                       value={formData.phone}
-                      onChange={(e) => handleFieldChange('phone', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^[+0-9\s\-()]*$/.test(val)) {
+                          handleFieldChange('phone', val);
+                        }
+                      }}
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all dark:text-white disabled:opacity-75 disabled:cursor-not-allowed"
                       placeholder="Contact number"
                     />

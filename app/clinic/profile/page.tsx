@@ -695,6 +695,14 @@ export default function ClinicProfilePage() {
   const handleSave = async () => {
     if (!user?.id) return;
 
+    if (formState.phone) {
+      const digitsOnly = formState.phone.replace(/[^\d]/g, '');
+      if (digitsOnly.length !== 10) {
+        setError('Please enter a valid 10-digit phone number.');
+        return;
+      }
+    }
+
     try {
       setIsSaving(true);
       const formData = new FormData();
@@ -840,7 +848,12 @@ export default function ClinicProfilePage() {
                     <input
                       type="text"
                       value={formState.phone}
-                      onChange={(e) => handleFieldChange('phone', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^[+0-9\s\-()]*$/.test(val)) {
+                          handleFieldChange('phone', val);
+                        }
+                      }}
                       className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                       placeholder="Phone number"
                     />
