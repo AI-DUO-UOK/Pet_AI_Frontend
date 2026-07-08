@@ -12,6 +12,8 @@ import {
   AlertCircle,
   Eye,
   Loader,
+  FileText,
+  X,
 } from 'lucide-react';
 
 // Real clinic data will be fetched from backend
@@ -57,6 +59,7 @@ function ClinicDetailsModal({
   );
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showFullDoc, setShowFullDoc] = useState(false);
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -136,25 +139,36 @@ function ClinicDetailsModal({
             </p>
             {clinic.license_document_url ? (
               clinic.license_document_url.toLowerCase().endsWith('.pdf') ? (
-                <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Verification License (PDF)
-                  </span>
-                  <a
-                    href={clinic.license_document_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700"
-                  >
-                    Open PDF Document
-                  </a>
+                <div 
+                  onClick={() => setShowFullDoc(true)}
+                  className="relative group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 h-56 flex items-center justify-center transition-all hover:border-primary-500/50"
+                >
+                  <div className="flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500 opacity-60 transition-opacity group-hover:opacity-40">
+                    <FileText className="w-16 h-16 text-primary-500" />
+                    <span className="text-sm font-medium">Verification License (PDF)</span>
+                  </div>
+                  <div className="absolute inset-0 bg-slate-900/10 transition-colors group-hover:bg-slate-900/30 flex items-center justify-center">
+                    <span className="px-5 py-3 text-sm font-semibold text-white bg-slate-950/75 backdrop-blur-md rounded-xl border border-white/10 shadow-lg shadow-black/20 hover:scale-105 transition-transform">
+                      Click to View Full Document
+                    </span>
+                  </div>
                 </div>
               ) : (
-                <img
-                  src={clinic.license_document_url}
-                  alt={`${clinic.clinic_name} License Document`}
-                  className="object-contain w-full h-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                />
+                <div 
+                  onClick={() => setShowFullDoc(true)}
+                  className="relative group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 h-56 flex items-center justify-center transition-all hover:border-primary-500/50"
+                >
+                  <img
+                    src={clinic.license_document_url}
+                    alt={`${clinic.clinic_name} License Document`}
+                    className="object-contain w-full h-full opacity-60 transition-opacity group-hover:opacity-45"
+                  />
+                  <div className="absolute inset-0 bg-slate-900/10 transition-colors group-hover:bg-slate-900/30 flex items-center justify-center">
+                    <span className="px-5 py-3 text-sm font-semibold text-white bg-slate-950/75 backdrop-blur-md rounded-xl border border-white/10 shadow-lg shadow-black/20 hover:scale-105 transition-transform">
+                      Click to View Full Image
+                    </span>
+                  </div>
+                </div>
               )
             ) : (
               <div className="flex items-center justify-center h-32 border-2 border-dashed rounded-2xl text-slate-400 border-slate-300 dark:border-slate-700">
@@ -344,6 +358,56 @@ function ClinicDetailsModal({
           </motion.button>
         </div>
       </motion.div>
+
+      {showFullDoc && clinic.license_document_url && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-5xl bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl flex flex-col max-h-[90vh]"
+          >
+            {/* Header bar as in screenshot */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/50">
+              <h3 className="text-lg font-bold text-white">
+                License Verification Document ({clinic.license_document_url.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Image'})
+              </h3>
+              <div className="flex items-center gap-3">
+                <a
+                  href={clinic.license_document_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                >
+                  Open in New Tab
+                </a>
+                <button
+                  onClick={() => setShowFullDoc(false)}
+                  className="text-slate-400 hover:text-white flex items-center gap-1.5 text-sm font-semibold transition-colors"
+                >
+                  <X className="w-4 h-4" /> Close
+                </button>
+              </div>
+            </div>
+
+            {/* Document body container */}
+            <div className="flex-1 p-6 overflow-auto flex items-center justify-center bg-slate-950/50 rounded-b-2xl">
+              {clinic.license_document_url.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={clinic.license_document_url}
+                  title="License Document PDF"
+                  className="w-full h-[70vh] rounded-xl border border-slate-800 bg-white"
+                />
+              ) : (
+                <img
+                  src={clinic.license_document_url}
+                  alt="License Document"
+                  className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg"
+                />
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
