@@ -126,9 +126,7 @@ function getRawDescription(description: string): string {
   const lines = description.split('\n');
   const rawLines = lines.filter(line => {
     const trimmed = line.trim();
-    return !trimmed.startsWith('Specialties:') && 
-           !trimmed.startsWith('Lead veterinarian:') && 
-           !trimmed.startsWith('Team:');
+    return !/^(specialt?ies|specialities|specialty|lead\s+veterinarian|team)\s*:/i.test(trimmed);
   });
   return rawLines.join('\n').trim();
 }

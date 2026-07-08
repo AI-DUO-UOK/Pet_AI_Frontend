@@ -129,9 +129,7 @@ function getRawDescription(description: string): string {
   const lines = description.split('\n');
   const rawLines = lines.filter(line => {
     const trimmed = line.trim();
-    return !trimmed.startsWith('Specialties:') && 
-           !trimmed.startsWith('Lead veterinarian:') && 
-           !trimmed.startsWith('Team:');
+    return !/^(specialt?ies|specialities|specialty|lead\s+veterinarian|team)\s*:/i.test(trimmed);
   });
   return rawLines.join('\n').trim();
 }
@@ -208,6 +206,7 @@ export default function ClinicProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [services, setServices] = useState<string[]>([]);
@@ -694,6 +693,8 @@ export default function ClinicProfilePage() {
 
   const handleSave = async () => {
     if (!user?.id) return;
+    setError(null);
+    setSuccessMsg(null);
 
     if (formState.phone) {
       const digitsOnly = formState.phone.replace(/[^\d]/g, '');
@@ -748,10 +749,16 @@ export default function ClinicProfilePage() {
       }
 
       const data = await response.json();
-      setProfile(data.clinic);
-      setPhotoFile(null);
-      setGalleryFiles([]);
-      setIsEditing(false);
+      if (data.success && data.clinic) {
+        setProfile(data.clinic);
+        setPhotoFile(null);
+        setGalleryFiles([]);
+        setIsEditing(false);
+        setSuccessMsg('Clinic profile updated successfully!');
+        setTimeout(() => setSuccessMsg(null), 4000);
+      } else {
+        throw new Error(data.error || 'Failed to update clinic profile');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -801,6 +808,18 @@ export default function ClinicProfilePage() {
           </motion.button>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 border border-red-200 rounded-xl bg-red-50 dark:bg-red-900/20 dark:border-red-800 text-red-700 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="p-4 border border-emerald-200 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+          {successMsg}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="overflow-hidden border bg-white dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800 shadow-sm">
@@ -1060,7 +1079,7 @@ export default function ClinicProfilePage() {
                 />
               ) : (
                 <p className="leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-line">
-                  {profile?.description || 'No clinic description has been provided yet.'}
+                  {getRawDescription(profile?.description || '') || 'No clinic description has been provided yet.'}
                 </p>
               )}
             </div>

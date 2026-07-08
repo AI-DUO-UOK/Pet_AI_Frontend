@@ -140,9 +140,7 @@ function getRawDescription(description: string): string {
   const lines = description.split('\n');
   const rawLines = lines.filter(line => {
     const trimmed = line.trim();
-    return !trimmed.startsWith('Specialties:') && 
-           !trimmed.startsWith('Lead veterinarian:') && 
-           !trimmed.startsWith('Team:');
+    return !/^(specialt?ies|specialities|specialty|lead\s+veterinarian|team)\s*:/i.test(trimmed);
   });
   return rawLines.join('\n').trim();
 }
@@ -665,7 +663,9 @@ export default function ClinicProfile() {
       {/* Description */}
       <div className="p-6 bg-white border shadow-sm dark:bg-slate-900 rounded-2xl border-slate-200 dark:border-slate-800">
         <h2 className="mb-3 text-xl font-bold text-slate-900 dark:text-white">About</h2>
-        <p className="leading-relaxed text-slate-600 dark:text-slate-300">{clinic.description}</p>
+        <p className="leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-line">
+          {getRawDescription(clinic.description || '')}
+        </p>
 
         <div className="grid grid-cols-1 gap-6 mt-6 md:grid-cols-2">
           <div>
