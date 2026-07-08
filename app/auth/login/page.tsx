@@ -102,14 +102,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-slate-50 dark:bg-slate-950">
+    <div className="flex items-center justify-center h-screen overflow-hidden p-4 bg-slate-50 dark:bg-slate-950">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md overflow-hidden bg-white border shadow-xl dark:bg-slate-900 rounded-2xl border-slate-100 dark:border-slate-800"
       >
-        <div className="p-8">
-          <div className="flex justify-center mb-8">
+        <div className="p-6 sm:p-8">
+          <div className="flex justify-center mb-4">
             <img 
               src="/images/login-logo-light.png" 
               alt="PetPulse Logo" 
@@ -125,11 +125,11 @@ export default function LoginPage() {
           <h2 className="mb-2 text-2xl font-bold text-center text-slate-900 dark:text-white">
             Welcome back to PetPulse
           </h2>
-          <p className="mb-8 text-center text-slate-500 dark:text-slate-400">
+          <p className="mb-6 text-center text-slate-500 dark:text-slate-400">
             Enter your details to access your account.
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">
                 {error}
@@ -197,7 +197,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="relative my-6">
+          <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200 dark:border-slate-700" />
             </div>
@@ -210,7 +210,7 @@ export default function LoginPage() {
 
           <GoogleButton onClick={handleGoogleLogin} isLoading={loading} />
 
-          <div className="mt-6 text-sm text-center">
+          <div className="mt-4 text-sm text-center">
             <span className="text-slate-600 dark:text-slate-400">
               Don't have an account?{' '}
               <Link
