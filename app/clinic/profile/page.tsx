@@ -88,6 +88,23 @@ type DoctorInfo = {
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1631217343661-1d1971f5a196?w=1200&h=800&fit=crop';
 
+const SUGGESTED_FACILITIES = [
+  'General Consultation',
+  'Vaccination Services',
+  'Diagnostic Laboratory',
+  'Digital X-Ray',
+  'Ultrasound',
+  'Surgery Suite',
+  'Pharmacy',
+  'Dental Care',
+  'Inpatient Hospitalization',
+  'ICU',
+  'Grooming',
+  'Pet Boarding',
+  'Microchipping',
+  'Emergency Care',
+];
+
 const formatDoctorName = (name: string) => {
   const trimmed = name.trim();
   if (!trimmed) return '';
@@ -1238,14 +1255,76 @@ export default function ClinicProfilePage() {
           {facilities.map((facility) => (
             <span key={facility} className="inline-flex items-center gap-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full font-medium">
               {facility}
-              {isEditing && <button type="button" onClick={() => removeFacility(facility)} className="hover:text-blue-900 dark:hover:text-blue-200"><X className="w-3.5 h-3.5" /></button>}
+              {isEditing && (
+                <button 
+                  type="button" 
+                  onClick={() => removeFacility(facility)} 
+                  className="hover:text-blue-900 dark:hover:text-blue-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </span>
           ))}
         </div>
+
         {isEditing && (
-          <div className="flex gap-2 mt-4">
-            <input value={newFacility} onChange={(e) => setNewFacility(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addFacility()} placeholder="Add facility..." className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white" />
-            <button type="button" onClick={addFacility} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Add</button>
+          <div className="mt-6 space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2.5 uppercase tracking-wider">
+                Click to toggle suggested facilities:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {SUGGESTED_FACILITIES.map((facility) => {
+                  const isSelected = facilities.includes(facility);
+                  return (
+                    <button
+                      key={facility}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          removeFacility(facility);
+                        } else {
+                          const next = [...facilities, facility];
+                          setFacilities(next);
+                          persistExtras(services, next, doctors);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                        isSelected
+                          ? 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400 font-bold'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white'
+                      }`}
+                    >
+                      {facility}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2.5 uppercase tracking-wider">
+                Or add a custom facility:
+              </p>
+              <div className="flex gap-2">
+                <input 
+                  value={newFacility} 
+                  onChange={(e) => setNewFacility(e.target.value)} 
+                  onKeyDown={(e) => e.key === 'Enter' && addFacility()} 
+                  placeholder="Enter custom facility..." 
+                  className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white text-sm outline-none focus:ring-2 focus:ring-primary-500/20" 
+                />
+                <button 
+                  type="button" 
+                  onClick={addFacility} 
+                  className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Custom
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
